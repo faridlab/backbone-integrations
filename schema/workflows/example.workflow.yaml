@@ -1,0 +1,52 @@
+# Example Workflow V2.0
+# A multi-step saga executed by a hand-authored service, proven by a golden-case test.
+# All write steps should run in ONE DB transaction; any failure rolls the whole thing back.
+# Copy + rename per real saga; delete if this module has none.
+
+name: ExampleSaga
+description: |
+  Replace with the business intent of your saga — what it creates/updates atomically,
+  what it validates first, and what event it emits on success.
+
+version: 2
+
+trigger:
+  event: ExampleRequested
+  extract:
+    name: "event.name"
+
+config:
+  timeout: 15s
+  persistence: false
+
+context:
+  example_id: null
+
+steps:
+  - name: validate
+    type: action
+    action: validate
+    on_success:
+      next: write_example
+    on_failure:
+      next: rejected
+
+  - name: write_example
+    type: action
+    action: create
+    entity: Example
+    on_success:
+      set:
+        example_id: "{{ result.id }}"
+      next: done
+
+  # Terminals
+  - name: done
+    type: terminal
+    status: completed
+    reason: "ExampleCreated"
+
+  - name: rejected
+    type: terminal
+    status: failed
+    reason: "validation rejected; nothing written"

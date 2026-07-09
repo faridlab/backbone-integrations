@@ -1,0 +1,70 @@
+# =============================================================================
+# Domain: Integrations
+# Entity: IntegrationConnector
+# Description: A configured connection to an external system — a payment gateway (Midtrans/Xendit), a
+# marketplace (Tokopedia/Shopee), a bank feed, a courier. A connector is an inbound/outbound ACL over the
+# event bus + the modules' PUBLIC contracts; it never reaches into a module's internals. Promoted for the
+# first named integration (tier5-deferred §7).
+# =============================================================================
+
+models:
+  - name: IntegrationConnector
+    collection: integration_connectors
+    description: "A configured connection to an external system (payment gateway / marketplace / bank feed)"
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique connector id"
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Org owner # logical FK to organization.Company.id"
+      provider:
+        type: string
+        attributes: ["@required", "@length(max=60)"]
+        description: "The external provider (midtrans | xendit | tokopedia | shopee | bca_feed | …)"
+      kind:
+        type: ConnectorKind
+        attributes: ["@required"]
+        description: "What the connector does"
+      direction:
+        type: ConnectorDirection
+        attributes: ["@required", "@default(inbound)"]
+        description: "Which directions this connector handles"
+      is_active:
+        type: boolean
+        attributes: ["@default(true)"]
+        description: "Only active connectors process events"
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+    indexes:
+      - type: unique
+        fields: [company_id, provider]
+
+enums:
+  - name: ConnectorKind
+    description: "The kind of external integration"
+    variants:
+      - name: payment_gateway
+        description: "A payment gateway (Midtrans/Xendit) — notifications map to payments"
+        default: true
+      - name: marketplace
+        description: "A marketplace (Tokopedia/Shopee) — orders map to sales orders"
+      - name: bank_feed
+        description: "A bank statement feed — lines map to bank transactions"
+      - name: courier
+        description: "A courier/logistics provider — status updates map to deliveries"
+
+  - name: ConnectorDirection
+    description: "Directions handled by a connector"
+    variants:
+      - name: inbound
+        description: "We only receive from the provider"
+        default: true
+      - name: outbound
+        description: "We only send to the provider"
+      - name: both
+        description: "Inbound and outbound"

@@ -1,0 +1,41 @@
+# =============================================================================
+# integrations Hooks - Example entity lifecycle + write-path rules
+# =============================================================================
+# Declarative spec of the behavior you implement in
+#   src/application/service/*_service.rs (or a hand-authored *_custom.rs)
+# and prove in tests/. Copy this file per entity that has real lifecycle/rules.
+# Delete it if the entity is pure CRUD with no invariants.
+
+module: integrations
+version: 2
+
+# -----------------------------------------------------------------------------
+# State machines - one per entity that has a status lifecycle.
+# -----------------------------------------------------------------------------
+state_machines:
+  - entity: Example
+    field: status
+    initial: active
+    states: [active, inactive]
+    transitions:
+      - { from: active,   to: inactive, on: deactivate }
+      - { from: inactive, to: active,   on: reactivate }
+
+# -----------------------------------------------------------------------------
+# Write-path rules - validated before any write. Each maps to a stable error_code
+# and to the golden/probe case that proves it.
+# -----------------------------------------------------------------------------
+rules:
+  - id: R1
+    name: example_rule
+    when: writing
+    assert: "name is present and non-empty"
+    error_code: invalid_name
+
+# -----------------------------------------------------------------------------
+# Domain events (emission is the parent service's responsibility).
+# -----------------------------------------------------------------------------
+events:
+  ExampleCreated:
+    when: "an example is created"
+    payload: [example_id, name]

@@ -1,0 +1,36 @@
+# integrations Module - Hooks Index
+# Version: 2.0
+#
+# Module-level configuration for hooks (lifecycle behaviors).
+# Hooks define: state machines, rules, permissions, triggers, computed fields.
+
+module: integrations
+version: 2
+
+# Import all hook files.
+imports:
+  - example.hook.yaml
+
+# =============================================================================
+# Module-level configuration
+# =============================================================================
+config:
+  audit:
+    retention_days: 365
+    archive_after_days: 90
+    critical_events: []
+
+  notifications:
+    email_enabled: false
+    sms_enabled: false
+    push_enabled: false
+
+# =============================================================================
+# Shared domain events
+# =============================================================================
+events: {}
+
+# =============================================================================
+# Scheduled jobs
+# =============================================================================
+scheduled_jobs: {}

@@ -1,0 +1,86 @@
+# =============================================================================
+# Domain: Integrations
+# Entity: IntegrationEvent
+# Description: One inbound event from an external provider (a Midtrans payment notification, a Tokopedia
+# order webhook, a bank-feed line). Providers deliver webhooks AT-LEAST-ONCE, so it is DEDUPED on
+# (connector, external_id) — a retried notification never re-maps. It is mapped to an internal action via a
+# TargetPort (a settled payment → backbone-payment; an order → backbone-selling); some events are
+# intentionally IGNORED (a "pending" payment notification needs no internal action). Posts NO GL.
+# =============================================================================
+
+models:
+  - name: IntegrationEvent
+    collection: integration_events
+    description: "One inbound event from an external provider, deduped + mapped to an internal action"
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique event id"
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Org owner # logical FK to organization.Company.id"
+      connector_id:
+        type: uuid
+        attributes: ["@required", "@foreign_key(IntegrationConnector.id)"]
+        description: "The connector this event arrived on"
+      event_type:
+        type: string
+        attributes: ["@required", "@length(max=80)"]
+        description: "The provider event type (payment_settled | order_created | statement_line | …)"
+      external_id:
+        type: string
+        attributes: ["@required", "@length(max=200)", "@exclude_from_foreign_key_check"]
+        description: "The provider's raw event/notification id — audit only, NOT dedup (it varies per notification)"
+      business_key:
+        type: string
+        attributes: ["@required", "@length(max=200)"]
+        description: "The BUSINESS action identity (order/transaction ref + terminal state, e.g. 'SO-9:settled') — the real dedup key, stable across the multiple notifications a provider sends per order"
+      status:
+        type: IntegrationStatus
+        attributes: ["@required", "@default(received)"]
+        description: "received → mapped | ignored | failed"
+      payload:
+        type: string
+        attributes: ["@required", "@length(max=20000)"]
+        description: "The raw provider payload (JSON)"
+      mapped_ref_type:
+        type: string?
+        attributes: ["@length(max=60)"]
+        description: "The internal record type this mapped to (payment | sales_order | bank_transaction)"
+      mapped_ref_id:
+        type: uuid?
+        attributes: ["@exclude_from_foreign_key_check"]
+        description: "The internal record # logical FK keyed by mapped_ref_type"
+      error_detail:
+        type: string?
+        attributes: ["@length(max=1000)"]
+        description: "Why mapping failed / the ignore reason"
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+    indexes:
+      # Dedup on the BUSINESS action identity, not the raw notification id — a provider sends multiple
+      # notifications per order (pending → settled), each with a different notification id but the same
+      # business action; keying on the notification id would apply the payment TWICE (maturity council
+      # 2026-07-11).
+      - type: unique
+        fields: [connector_id, business_key]
+      - type: index
+        fields: [company_id, status]
+
+enums:
+  - name: IntegrationStatus
+    description: "Event processing lifecycle"
+    variants:
+      - name: received
+        description: "Recorded, not yet mapped"
+        default: true
+      - name: mapped
+        description: "Mapped to an internal action"
+      - name: ignored
+        description: "Intentionally not mapped (no internal action needed)"
+      - name: failed
+        description: "Mapping failed"
