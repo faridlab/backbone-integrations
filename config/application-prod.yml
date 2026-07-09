@@ -1,0 +1,16 @@
+server:
+  host: 0.0.0.0
+  port: ${SERVER_PORT:3000}
+  grpc_port: ${GRPC_PORT:50051}
+database:
+  url: ${DATABASE_URL}
+  max_connections: ${DB_MAX_CONNECTIONS:50}
+  min_connections: ${DB_MIN_CONNECTIONS:10}
+logging:
+  level: ${LOG_LEVEL:info}
+  format: json
+tracing:
+  enabled: true
+  endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT}
+metrics:
+  enabled: true

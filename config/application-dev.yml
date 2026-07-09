@@ -1,0 +1,12 @@
+server:
+  host: 127.0.0.1
+database:
+  url: postgresql://root:password@localhost:5432/integrations_dev
+  max_connections: 5
+logging:
+  level: debug
+  format: pretty
+tracing:
+  enabled: false
+metrics:
+  enabled: false

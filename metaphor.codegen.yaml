@@ -1,0 +1,24 @@
+# Codegen policy for integrations.
+#
+# `user_owned` globs are hand-written files that live inside generator-owned trees but are
+# NOT schema-derived. `metaphor schema generate [--force]` skips them wholesale (never reads,
+# merges, or deletes them). Everything else in src/ is regenerated from schema/models.
+#
+# Re-exports/declarations that must sit alongside generated code live inside
+# `// <<< CUSTOM ... // END CUSTOM` markers (service/mod.rs, presentation/http/mod.rs, lib.rs)
+# and are preserved by the marker mechanism, not listed here.
+#
+# Add your hand-authored services, handlers, tests, and docs below as you write them.
+
+user_owned:
+  # Hand-authored behavior (services + their HTTP surface). Examples:
+  # - "src/application/service/onboarding_service.rs"
+  # - "src/presentation/http/guarded_routes.rs"
+
+  # Behavior tests (the golden cases / oracle) + BDD features.
+  - "tests/features/**"
+  # - "tests/*_golden_cases.rs"
+  # - "tests/integrity_probes.rs"
+
+  # Hand-authored module documentation.
+  - "docs/**"
