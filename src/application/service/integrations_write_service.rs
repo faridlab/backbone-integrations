@@ -5,6 +5,7 @@
 //! duplicate order) — map it to an internal action via a `TargetPort`, or record it as intentionally
 //! ignored. Posts NO GL. Integrations reaches a module only through its public contract (the port).
 
+use backbone_orm::company_scope;
 use chrono::Utc;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
@@ -80,13 +81,18 @@ impl IntegrationsWriteService {
             return Err(IntegrationError::Invalid("connector needs a provider".into()));
         }
         let id = Uuid::new_v4();
-        let r = sqlx::query(
+        // RLS scope (ADR-0008): company is on the DTO — scope the insert so it passes the WITH CHECK fence.
+        let insert_q = sqlx::query(
             r#"INSERT INTO integrations.integration_connectors
                  (id, company_id, provider, kind, direction, is_active)
                VALUES ($1,$2,$3,$4::connector_kind,$5::connector_direction,true)"#,
         )
-        .bind(id).bind(c.company_id).bind(&c.provider).bind(&c.kind).bind(&c.direction)
-        .execute(&self.pool).await;
+        .bind(id).bind(c.company_id).bind(&c.provider).bind(&c.kind).bind(&c.direction);
+        let r = company_scope::with_company_scope(
+            Some(c.company_id),
+            company_scope::execute_scoped(&self.pool, insert_q),
+        )
+        .await;
         match r {
             Ok(_) => Ok(id),
             Err(e) if e.as_database_error().map(|d| d.is_unique_violation()).unwrap_or(false) =>
@@ -110,12 +116,22 @@ impl IntegrationsWriteService {
         if e.business_key.trim().is_empty() {
             return Err(IntegrationError::Invalid("an inbound event needs a business_key (the order/transaction ref + state)".into()));
         }
+        // RLS scope (ADR-0008): the inbound event carries its company — scope every read/write below to it,
+        // so a webhook is fenced to the tenant that owns the connector even off the request path (a
+        // provider callback has no ambient scope of its own).
         // The connector must exist and be active.
-        let conn = sqlx::query(
-            r#"SELECT kind::text AS kind, is_active FROM integrations.integration_connectors
-               WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+        let conn = company_scope::with_company_scope(
+            Some(e.company_id),
+            company_scope::fetch_optional_row_scoped(
+                &self.pool,
+                sqlx::query(
+                    r#"SELECT kind::text AS kind, is_active FROM integrations.integration_connectors
+                       WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
+                )
+                .bind(e.connector_id),
+            ),
         )
-        .bind(e.connector_id).fetch_optional(&self.pool).await?
+        .await?
         .ok_or(IntegrationError::NotFound("connector"))?;
         if !conn.get::<bool, _>("is_active") {
             return Err(IntegrationError::InvalidState("connector is not active"));
@@ -124,7 +140,7 @@ impl IntegrationsWriteService {
 
         // Claim the (connector, business_key) dedup slot — a webhook retry OR a second notification for the
         // same business action conflicts here; a new business action does not.
-        let inserted: Option<Uuid> = sqlx::query_scalar(
+        let claim_q = sqlx::query_scalar(
             r#"INSERT INTO integrations.integration_events
                  (id, company_id, connector_id, event_type, external_id, business_key, status, payload)
                VALUES ($1,$2,$3,$4,$5,$6,'received'::integration_status,$7)
@@ -132,15 +148,24 @@ impl IntegrationsWriteService {
                RETURNING id"#,
         )
         .bind(Uuid::new_v4()).bind(e.company_id).bind(e.connector_id).bind(&e.event_type)
-        .bind(&e.external_id).bind(&e.business_key).bind(&e.raw)
-        .fetch_optional(&self.pool).await?;
+        .bind(&e.external_id).bind(&e.business_key).bind(&e.raw);
+        let inserted: Option<Uuid> = company_scope::with_company_scope(
+            Some(e.company_id),
+            company_scope::fetch_optional_scalar_scoped(&self.pool, claim_q),
+        )
+        .await?;
 
         let Some(event_id) = inserted else {
-            let row = sqlx::query(
+            let dup_q = sqlx::query(
                 r#"SELECT id, status::text AS status, mapped_ref_id FROM integrations.integration_events
                    WHERE connector_id=$1 AND business_key=$2"#,
             )
-            .bind(e.connector_id).bind(&e.business_key).fetch_one(&self.pool).await?;
+            .bind(e.connector_id).bind(&e.business_key);
+            let row = company_scope::with_company_scope(
+                Some(e.company_id),
+                company_scope::fetch_one_row_scoped(&self.pool, dup_q),
+            )
+            .await?;
             return Ok(ReceiveOutcome {
                 event_id: row.get("id"), status: row.get("status"),
                 mapped_ref_id: row.get("mapped_ref_id"), duplicate: true,
@@ -162,6 +187,7 @@ impl IntegrationsWriteService {
                     internal_ref_type: mref.internal_ref_type.clone(), internal_ref_id: mref.internal_ref_id,
                 });
                 let mut tx = self.pool.begin().await?;
+                company_scope::bind_company_on(&mut tx, e.company_id).await?;
                 sqlx::query(
                     r#"UPDATE integrations.integration_events
                        SET status='mapped'::integration_status, mapped_ref_type=$2, mapped_ref_id=$3
@@ -179,6 +205,7 @@ impl IntegrationsWriteService {
                     event_id, connector_id: e.connector_id, external_id: e.external_id.clone(), reason: reason.clone(),
                 };
                 let mut tx = self.pool.begin().await?;
+                company_scope::bind_company_on(&mut tx, e.company_id).await?;
                 sqlx::query(
                     r#"UPDATE integrations.integration_events SET status='ignored'::integration_status, error_detail=$2
                        WHERE id=$1 AND status='received'::integration_status"#,
@@ -195,6 +222,7 @@ impl IntegrationsWriteService {
                     external_id: e.external_id.clone(), reason: rej.code.clone(),
                 };
                 let mut tx = self.pool.begin().await?;
+                company_scope::bind_company_on(&mut tx, e.company_id).await?;
                 sqlx::query(
                     r#"UPDATE integrations.integration_events SET status='failed'::integration_status, error_detail=$2
                        WHERE id=$1 AND status='received'::integration_status"#,
@@ -212,13 +240,20 @@ impl IntegrationsWriteService {
     /// see WHICH provider events (e.g. settled payments) failed to book, WITHOUT querying the private ledger
     /// (completeness council 2026-07-11).
     pub async fn failures(&self, connector_id: Uuid) -> Result<Vec<FailedEvent>, IntegrationError> {
-        let rows = sqlx::query(
-            r#"SELECT id, event_type, external_id, business_key, error_detail
-               FROM integrations.integration_events
-               WHERE connector_id=$1 AND status='failed'::integration_status
-               ORDER BY (metadata->>'created_at') NULLS FIRST"#,
+        // RLS scope (ADR-0008), ID-only pattern: the connector id alone identifies the report, so the read
+        // rides the request-dedicated connection's `app.company_id` — another tenant's connector returns
+        // nothing. A non-request caller must wrap this in `with_company_scope(Some(company_id))`.
+        let rows = company_scope::fetch_all_rows_scoped(
+            &self.pool,
+            sqlx::query(
+                r#"SELECT id, event_type, external_id, business_key, error_detail
+                   FROM integrations.integration_events
+                   WHERE connector_id=$1 AND status='failed'::integration_status
+                   ORDER BY (metadata->>'created_at') NULLS FIRST"#,
+            )
+            .bind(connector_id),
         )
-        .bind(connector_id).fetch_all(&self.pool).await?;
+        .await?;
         Ok(rows.iter().map(|r| FailedEvent {
             event_id: r.get("id"), event_type: r.get("event_type"), external_id: r.get("external_id"),
             business_key: r.get("business_key"), error_detail: r.get("error_detail"),
@@ -236,18 +271,32 @@ impl IntegrationsWriteService {
         mapper: &dyn TargetPort,
         events: &dyn IntegrationEventSink,
     ) -> Result<usize, IntegrationError> {
-        let conn = sqlx::query(
-            "SELECT company_id, kind::text AS kind FROM integrations.integration_connectors WHERE id=$1")
-            .bind(connector_id).fetch_optional(&self.pool).await?
-            .ok_or(IntegrationError::NotFound("connector"))?;
+        // RLS scope (ADR-0008), ID-only pattern: identified by the connector id alone, so this first read
+        // rides the request-dedicated connection. Having read the connector's company, every read/write
+        // below carries it explicitly — the retry loop is long-running and may outlive the request scope.
+        let conn = company_scope::fetch_optional_row_scoped(
+            &self.pool,
+            sqlx::query(
+                "SELECT company_id, kind::text AS kind FROM integrations.integration_connectors WHERE id=$1")
+                .bind(connector_id),
+        )
+        .await?
+        .ok_or(IntegrationError::NotFound("connector"))?;
         let company_id: Uuid = conn.get("company_id");
         let connector_kind: String = conn.get("kind");
 
-        let rows = sqlx::query(
-            r#"SELECT id, event_type, external_id, business_key, payload FROM integrations.integration_events
-               WHERE connector_id=$1 AND status='failed'::integration_status"#,
+        let rows = company_scope::with_company_scope(
+            Some(company_id),
+            company_scope::fetch_all_rows_scoped(
+                &self.pool,
+                sqlx::query(
+                    r#"SELECT id, event_type, external_id, business_key, payload FROM integrations.integration_events
+                       WHERE connector_id=$1 AND status='failed'::integration_status"#,
+                )
+                .bind(connector_id),
+            ),
         )
-        .bind(connector_id).fetch_all(&self.pool).await?;
+        .await?;
 
         let mut mapped = 0usize;
         for row in &rows {
@@ -266,6 +315,7 @@ impl IntegrationsWriteService {
                         internal_ref_type: mref.internal_ref_type.clone(), internal_ref_id: mref.internal_ref_id,
                     });
                     let mut tx = self.pool.begin().await?;
+                    company_scope::bind_company_on(&mut tx, company_id).await?;
                     let m = sqlx::query(
                         r#"UPDATE integrations.integration_events
                            SET status='mapped'::integration_status, mapped_ref_type=$2, mapped_ref_id=$3, error_detail=NULL
@@ -283,16 +333,26 @@ impl IntegrationsWriteService {
                     }
                 }
                 Ok(MapOutcome::Ignored(reason)) => {
-                    sqlx::query(
+                    let ignore_q = sqlx::query(
                         r#"UPDATE integrations.integration_events SET status='ignored'::integration_status, error_detail=$2
                            WHERE id=$1 AND status='failed'::integration_status"#,
                     )
-                    .bind(event_id).bind(&reason).execute(&self.pool).await?;
+                    .bind(event_id).bind(&reason);
+                    company_scope::with_company_scope(
+                        Some(company_id),
+                        company_scope::execute_scoped(&self.pool, ignore_q),
+                    )
+                    .await?;
                 }
                 Err(rej) => {
-                    sqlx::query(
+                    let detail_q = sqlx::query(
                         "UPDATE integrations.integration_events SET error_detail=$2 WHERE id=$1 AND status='failed'::integration_status")
-                    .bind(event_id).bind(&rej.message).execute(&self.pool).await?;
+                    .bind(event_id).bind(&rej.message);
+                    company_scope::with_company_scope(
+                        Some(company_id),
+                        company_scope::execute_scoped(&self.pool, detail_q),
+                    )
+                    .await?;
                 }
             }
         }
