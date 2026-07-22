@@ -318,10 +318,15 @@ async fn stage(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, event: &Integrati
         IntegrationEvent::IntegrationEventFailed { event_id, .. } => ("IntegrationEventFailed", *event_id),
         IntegrationEvent::IntegrationEventIgnored { event_id, .. } => ("IntegrationEventIgnored", *event_id),
     };
+    let payload = serde_json::to_value(event).map_err(|e| IntegrationError::Invalid(e.to_string()))?;
+    let company_id: Uuid = payload
+        .get("company_id")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| IntegrationError::Invalid("integration event missing company_id".into()))?
+        .parse()
+        .map_err(|e| IntegrationError::Invalid(format!("company_id parse: {e}")))?;
     let record = backbone_outbox::OutboxRecord::new(
-        etype, "IntegrationEvent", agg_id.to_string(),
-        serde_json::to_value(event).map_err(|e| IntegrationError::Invalid(e.to_string()))?,
-        Utc::now(),
+        etype, "IntegrationEvent", agg_id.to_string(), company_id, payload, Utc::now(),
     );
     backbone_outbox::outbox::stage(&mut **tx, "integrations", &record)
         .await.map_err(|e| IntegrationError::Invalid(format!("outbox stage: {e}")))?;
