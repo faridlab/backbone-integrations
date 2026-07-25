@@ -420,7 +420,8 @@ dependencies = [
 
 [[package]]
 name = "backbone-outbox"
-version = "0.1.0"
+version = "0.2.0"
+source = "git+https://github.com/faridlab/backbone-framework?tag=v2.7.4#10829dca8fbf2726c44d2575e551bc8702995440"
 dependencies = [
  "chrono",
  "serde",
