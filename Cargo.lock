@@ -311,8 +311,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "backbone-gl-posting"
+version = "0.1.0"
+source = "git+https://github.com/faridlab/backbone-framework?tag=v2.7.5#15a7d6cd42d1398bababc5bac38230608a838a07"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "rust_decimal",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "backbone-integrations"
-version = "0.2.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -433,13 +445,14 @@ dependencies = [
 
 [[package]]
 name = "backbone-payment"
-version = "0.3.0"
+version = "0.7.1"
 dependencies = [
  "anyhow",
  "async-trait",
  "axum",
  "backbone-auth 2.0.0 (git+https://github.com/faridlab/backbone-framework?tag=v2.7.1)",
  "backbone-core 2.0.0 (git+https://github.com/faridlab/backbone-framework?tag=v2.7.1)",
+ "backbone-gl-posting",
  "backbone-messaging 2.0.0 (git+https://github.com/faridlab/backbone-framework?tag=v2.7.1)",
  "backbone-orm 2.0.0 (git+https://github.com/faridlab/backbone-framework?tag=v2.7.1)",
  "backbone-outbox",
