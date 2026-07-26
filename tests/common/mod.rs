@@ -81,6 +81,7 @@ impl TargetPort for RealPaymentTarget {
             posting_date: chrono::Utc::now().date_naive(), currency: None, mode_of_payment_id: None,
             bank_account_id: Uuid::new_v4(), party_account_id: Uuid::new_v4(),
             paid_amount: amount, reference_no: Some(req.external_id.clone()), allocations: vec![],
+            withholding_amount: Decimal::ZERO, withholding_account_id: None, withholding_tax_type: "none".into(),
         }).await.map_err(|e| MapRejected { code: "payment_rejected".into(), message: e.to_string() })?;
         Ok(MapOutcome::Mapped(MappedRef { internal_ref_type: "payment".into(), internal_ref_id: id }))
     }

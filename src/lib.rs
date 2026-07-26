@@ -34,6 +34,15 @@ pub use infrastructure::persistence::*;
 pub use application::service::IntegrationConnectorService;
 pub use application::service::IntegrationEventService;
 
+// <<< CUSTOM
+// The hand-authored write path: receive an inbound provider event idempotently and map it via TargetPort,
+// plus the port + receiver types a composing service needs to wire the seam from one place.
+pub use application::service::IntegrationsWriteService;
+pub use application::service::{TargetPort, MapRequest, MapOutcome, MapRejected, MappedRef};
+pub use application::service::{InboundEvent, ReceiveOutcome, NewConnector, FailedEvent, IntegrationError};
+pub use application::service::{IntegrationEvent, IntegrationEventMapped, IntegrationEventSink, LoggingSink};
+// END CUSTOM
+
 // Re-exports - Workflows
 pub use application::workflows::*;
 
@@ -56,6 +65,11 @@ use sqlx::PgPool;
 pub struct IntegrationsModule {
     pub integration_connector_service: Arc<IntegrationConnectorService>,
     pub integration_event_service: Arc<IntegrationEventService>,
+    // <<< CUSTOM
+    /// The hand-authored receive/retry/map path. The module's reason for existing — without this field
+    /// it's unreachable through the public API (CLAUDE.md: "MUST register every service in the {Domain}Module builder").
+    pub integrations_write_service: Arc<IntegrationsWriteService>,
+    // END CUSTOM
 }
 
 impl IntegrationsModule {
@@ -127,12 +141,16 @@ impl IntegrationsModuleBuilder {
         let integration_event_service = Arc::new(IntegrationEventService::with_repository(integration_event_repository.clone()));
 
         // <<< CUSTOM
+        // IntegrationsWrite service — the hand-authored receive/retry/map path; constructed alongside the
+        // generated CRUD services so the module ships its whole public surface from the builder.
+        let integrations_write_service = Arc::new(IntegrationsWriteService::new(db_pool.clone()));
         // END CUSTOM
 
         Ok(IntegrationsModule {
             integration_connector_service,
             integration_event_service,
             // <<< CUSTOM
+            integrations_write_service,
             // END CUSTOM
         })
     }
