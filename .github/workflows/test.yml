@@ -1,0 +1,57 @@
+name: Test
+
+# Catches compile regressions on every push/PR — including the class of bug where codegen regeneration
+# strands a CUSTOM block and breaks the build (council 2026-08-05). The lib parse error that prompted
+# this gate would have been red here.
+#
+# `--all-targets` covers the lib, the seeder bin, AND every test binary (golden / integrity /
+# payment-seam / api), so a regen that breaks test wiring fails CI, not just a local compile.
+#
+# `backbone-payment` is a path dev-dependency (../backbone-payment) needed to compile the test targets,
+# so it is checked out as a sibling — the same relative layout the module expects on disk.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  compile:
+    name: Compile (lib + bins + tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: backbone-integrations
+
+      # Sibling checkout so the `path = "../backbone-payment"` dev-dependency resolves for --all-targets.
+      - uses: actions/checkout@v4
+        with:
+          repository: faridlab/backbone-payment
+          path: backbone-payment
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backbone-integrations
+
+      - name: cargo check --all-targets
+        working-directory: backbone-integrations
+        run: cargo check --all-targets --locked
+
+  # ---------------------------------------------------------------------------
+  # TODO (fast-follow): live golden/integrity/payment-seam tests against Postgres.
+  # The compile job above is the reliable regression gate. Running the suites needs:
+  #   1. a postgres:16 service (template exists in modules/backbone-framework/.github/workflows/test.yml),
+  #   2. DATABASE_URL pointed at it (overriding the :5433 default in tests/common/mod.rs),
+  #   3. BOTH the `integrations` schema (this module's migrations/) AND the `payment` schema
+  #      (../backbone-payment/migrations/) applied — the payment-seam test drives the real
+  #      backbone-payment write path.
+  # Blocker: the two modules share migration version numbers (e.g. 20260426220000_create_enums in
+  # both), so two `sqlx migrate run` calls collide on the shared _sqlx_migrations table and the
+  # second module's migrations are silently skipped. Needs the workspace's unified migration runner
+  # (or a psql-apply of all *.up.sql across both modules, relying on CREATE … IF NOT EXISTS) before
+  # this job can be trusted green. Tracked as the live-test follow-up to the 2026-08-05 council.
+  # ---------------------------------------------------------------------------
