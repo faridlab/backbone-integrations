@@ -24,6 +24,9 @@ config:
       - graphql
       - grpc
       - proto
+    # Don't re-export domain entities at the crate root (rec #4) — this module's outward contract is
+    # the exports::types DTOs + ports, not internal entity representations. Durable across regen.
+    reexport_entities: false
 
 # Reuse sapiens for user identity (actors) — logical refs, no DB constraint.
 external_imports:
