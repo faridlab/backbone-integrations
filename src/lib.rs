@@ -23,9 +23,7 @@ pub mod infrastructure;
 pub mod application;
 pub mod presentation;
 pub mod seeders;
-
-// Re-exports for convenience - Domain entities
-pub use domain::entity::*;
+pub mod exports;
 
 // Re-exports - Infrastructure
 pub use infrastructure::persistence::*;
@@ -42,7 +40,6 @@ pub use application::service::{TargetPort, MapRequest, MapOutcome, MapRejected, 
 pub use application::service::{InboundEvent, ReceiveOutcome, NewConnector, FailedEvent, IntegrationError};
 pub use application::service::{IntegrationEvent, IntegrationEventMapped, IntegrationEventSink, LoggingSink};
 // END CUSTOM
-
 // Re-exports - Workflows
 pub use application::workflows::*;
 
@@ -63,9 +60,9 @@ use sqlx::PgPool;
 /// let router = integrations.all_crud_routes();
 /// ```
 pub struct IntegrationsModule {
-    pub integration_connector_service: Arc<IntegrationConnectorService>,
-    pub integration_event_service: Arc<IntegrationEventService>,
-    // <<< CUSTOM
+    pub(crate) integration_connector_service: Arc<IntegrationConnectorService>,
+    pub(crate) integration_event_service: Arc<IntegrationEventService>,
+    // <<< CUSTOM FIELDS
     /// The hand-authored receive/retry/map path. The module's reason for existing — without this field
     /// it's unreachable through the public API (CLAUDE.md: "MUST register every service in the {Domain}Module builder").
     pub integrations_write_service: Arc<IntegrationsWriteService>,
@@ -99,10 +96,46 @@ impl IntegrationsModule {
     /// mount exposes unguarded writes. Compose a guarded router (read + validated
     /// writes) for production, or call `all_crud_routes()` to opt into the full
     /// unguarded surface explicitly.
-    #[deprecated(note = "mounts unvalidated generic CRUD on every entity; compose a guarded router for production, or call all_crud_routes() for the intentional full/unguarded surface")]
+    #[deprecated(note = "mounts unvalidated generic CRUD; prefer readonly_routes() + validated writes, or all_crud_routes() for the full/unguarded surface")]
     pub fn routes(&self) -> Router {
         self.all_crud_routes()
     }
+
+    /// Read-only routes for every entity (GET endpoints only) — the safe base.
+    ///
+    /// Generic mutation can't reach here, so this surface cannot bypass a
+    /// validated write service's invariants. Use this as the production base and
+    /// merge validated write routes (or a write service's HTTP layer) onto it.
+    pub fn readonly_routes(&self) -> Router {
+        use presentation::http::{
+            create_integration_connector_read_routes,
+            create_integration_event_read_routes,
+        };
+
+        Router::new()
+            .merge(create_integration_connector_read_routes(self.integration_connector_service.clone()))
+            .merge(create_integration_event_read_routes(self.integration_event_service.clone()))
+    }
+
+    // <<< CUSTOM METHODS
+    /// Production-safe router: connector admin CRUD + event READ-only.
+    ///
+    /// Integration events are produced by the idempotent `receive_event` path, not
+    /// hand-mutated, so the generic event write/bulk endpoints are deliberately
+    /// excluded here — a caller cannot bypass the dedup/map state machine through
+    /// this surface. Mount this (or `readonly_routes()`) for production; reserve
+    /// `all_crud_routes()` for trusted/admin/seeding only.
+    pub fn guarded_routes(&self) -> Router {
+        use presentation::http::{
+            create_integration_connector_routes,
+            create_integration_event_read_routes,
+        };
+
+        Router::new()
+            .merge(create_integration_connector_routes(self.integration_connector_service.clone()))
+            .merge(create_integration_event_read_routes(self.integration_event_service.clone()))
+    }
+    // END CUSTOM
 }
 
 /// Builder for IntegrationsModule
