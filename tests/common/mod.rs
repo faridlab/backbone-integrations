@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex};
 
 use backbone_integrations::application::service::integrations_events::{IntegrationEvent, IntegrationEventSink};
 use backbone_integrations::application::service::integrations_ports::*;
+use backbone_integrations::IntegrationsModule;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -16,6 +17,16 @@ pub fn dburl() -> String {
 }
 pub async fn pool() -> PgPool {
     PgPool::connect(&dburl()).await.expect("connect")
+}
+
+/// Build the module through its public builder — the surface a composing service uses. Routing the write
+/// service through `IntegrationsModule::builder().build()` makes the module wiring (struct field + builder)
+/// a tested surface, so a regen that drops the field fails a test, not just a compile.
+pub async fn module(pool: PgPool) -> IntegrationsModule {
+    IntegrationsModule::builder()
+        .with_database(pool)
+        .build()
+        .expect("module build")
 }
 
 /// A fake target: maps `payment_settled` to a synthetic ref, IGNORES `payment_pending`, rejects a key in

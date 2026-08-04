@@ -15,7 +15,7 @@ use uuid::Uuid;
 async fn iseam1_settled_notification_becomes_real_payment() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let target = RealPaymentTarget::new(pool.clone());
     let sink = CapturingSink::new();
 

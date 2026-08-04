@@ -25,7 +25,7 @@ fn event(company: Uuid, conn: Uuid, ext: &str) -> InboundEvent {
 async fn iip1_external_id_required() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
     let r = svc.receive_event(event(company, conn, "  "), &FakeTarget::new(), &CapturingSink::new()).await;
     assert!(matches!(r, Err(IntegrationError::Invalid(_))));
@@ -36,7 +36,7 @@ async fn iip1_external_id_required() {
 async fn iip2_inactive_connector_rejected() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
     sqlx::query("UPDATE integrations.integration_connectors SET is_active=false WHERE id=$1")
         .bind(conn).execute(&pool).await.unwrap();
@@ -49,7 +49,7 @@ async fn iip2_inactive_connector_rejected() {
 async fn iip3_dedup_is_per_connector() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let a = connector(&svc, company, &format!("midtrans-{}", Uuid::new_v4())).await;
     let b = connector(&svc, company, &format!("xendit-{}", Uuid::new_v4())).await;
     let target = FakeTarget::new();
@@ -68,7 +68,7 @@ async fn iip3_dedup_is_per_connector() {
 async fn iip4_lifecycle_event_durable() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
     let out = svc.receive_event(event(company, conn, &format!("n-{}", Uuid::new_v4())), &FakeTarget::new(), &DroppingSink).await.unwrap();
     let staged: i64 = sqlx::query_scalar(
@@ -84,7 +84,7 @@ async fn iip4_lifecycle_event_durable() {
 async fn iip5_second_settled_notification_dedups() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company, &format!("midtrans-{}", Uuid::new_v4())).await;
     let target = FakeTarget::new();
 

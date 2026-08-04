@@ -28,7 +28,7 @@ fn event(company: Uuid, conn: Uuid, ext: &str, etype: &str) -> InboundEvent {
 async fn igc1_settled_maps() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company).await;
     let target = FakeTarget::new();
     let sink = CapturingSink::new();
@@ -45,7 +45,7 @@ async fn igc1_settled_maps() {
 async fn igc2_retry_idempotent() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company).await;
     let target = FakeTarget::new();
     let sink = CapturingSink::new();
@@ -64,7 +64,7 @@ async fn igc2_retry_idempotent() {
 async fn igc3_pending_ignored() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company).await;
     let sink = CapturingSink::new();
 
@@ -84,7 +84,7 @@ async fn igc3_pending_ignored() {
 async fn igc4_unmappable_fails() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company).await;
     let sink = CapturingSink::new();
 
@@ -105,7 +105,7 @@ async fn igc4_unmappable_fails() {
 async fn igc5_failures_report_and_retry() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let svc = IntegrationsWriteService::new(pool.clone());
+    let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company).await;
     let sink = CapturingSink::new();
 
