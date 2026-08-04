@@ -216,6 +216,9 @@ impl backbone_orm::EntityRepoMeta for IntegrationConnector {
     fn search_fields() -> &'static [&'static str] {
         &["provider"]
     }
+    fn company_field() -> Option<&'static str> {
+        Some("company_id")
+    }
 }
 
 /// Builder for IntegrationConnector entity

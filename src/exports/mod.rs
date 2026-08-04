@@ -8,7 +8,7 @@
 //! ## Usage from other modules
 //!
 //! ```text
-//! use integrations::exports::{IntegrationConnectorDto, IntegrationsQueryService};
+//! use integrations::exports::{IntegrationConnectorDto};
 //! ```
 
 mod types;
@@ -33,9 +33,6 @@ pub use events::*;
 /// - `IntegrationEventDto` - Data transfer object for IntegrationEvent
 /// - `IntegrationEventSummary` - Summary view of IntegrationEvent
 /// - `IntegrationEventId` - Type-safe ID wrapper
-///
-/// ## Public Services
-/// - `IntegrationsQueryService` - Read-only queries
 ///
 /// ## Public Events
 /// - `IntegrationConnectorCreatedEvent` - Published when IntegrationConnector is created

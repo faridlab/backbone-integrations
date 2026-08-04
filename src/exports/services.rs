@@ -5,58 +5,6 @@
 //! These services provide the public API for other modules.
 //! They only expose read operations - writes go through events.
 
-use std::sync::Arc;
-
-use anyhow::Result;
-use async_trait::async_trait;
-use uuid::Uuid;
-
-use super::types::*;
-
-// ============================================================================
-// QUERY SERVICE TRAIT
-// ============================================================================
-
-/// Public query service for Integrations module
-///
-/// This trait defines read-only operations that other modules can use.
-/// Implementations should NOT expose internal domain logic.
-#[async_trait]
-pub trait IntegrationsQueryService: Send + Sync {
-    /// Get IntegrationConnector by ID
-    async fn get_integration_connector(&self, id: IntegrationConnectorId) -> Result<Option<IntegrationConnectorDto>>;
-
-    /// Get IntegrationConnector summary by ID
-    async fn get_integration_connector_summary(&self, id: IntegrationConnectorId) -> Result<Option<IntegrationConnectorSummary>>;
-
-    /// Check if IntegrationConnector exists
-    async fn integration_connector_exists(&self, id: IntegrationConnectorId) -> Result<bool>;
-
-    /// Get IntegrationEvent by ID
-    async fn get_integration_event(&self, id: IntegrationEventId) -> Result<Option<IntegrationEventDto>>;
-
-    /// Get IntegrationEvent summary by ID
-    async fn get_integration_event_summary(&self, id: IntegrationEventId) -> Result<Option<IntegrationEventSummary>>;
-
-    /// Check if IntegrationEvent exists
-    async fn integration_event_exists(&self, id: IntegrationEventId) -> Result<bool>;
-
-}
-
-// ============================================================================
-// QUERY SERVICE IMPLEMENTATION
-// ============================================================================
-
-/// Default implementation of IntegrationsQueryService
-pub struct IntegrationsQueryServiceImpl<R> {
-    repository: Arc<R>,
-}
-
-impl<R> IntegrationsQueryServiceImpl<R> {
-    pub fn new(repository: Arc<R>) -> Self {
-        Self { repository }
-    }
-}
 
 // ============================================================================
 // CUSTOM SERVICES
