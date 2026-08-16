@@ -42,6 +42,7 @@ metaphor lint check
 - **NEVER** write ad-hoc axum routes; use `BackboneCrudHandler` which gives all 12 endpoints (list / create / get / update / patch / soft_delete / restore / empty_trash / bulk_create / upsert / find_by_id / list_deleted).
 - **NEVER** bypass `GenericCrudRepository` for simple CRUD — extend it via custom methods.
 - **NEVER** touch another module's schema YAML.
+- **MUST** read and follow the target repo's own `CLAUDE.md` when working across repos — before editing in another repo, read its rules; the more local `CLAUDE.md` always wins.
 
 ## Four-layer folder cheatsheet
 
