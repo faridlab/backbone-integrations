@@ -134,7 +134,7 @@ impl IntegrationsWriteService {
         )
         .await?
         .ok_or(IntegrationError::NotFound("connector"))?;
-        if !conn.is_active {
+        if conn.status != "active" {
             return Err(IntegrationError::InvalidState("connector is not active"));
         }
         let connector_kind = conn.kind;
@@ -193,7 +193,7 @@ impl IntegrationsWriteService {
             }
             Ok(MapOutcome::Ignored(reason)) => {
                 let ev = IntegrationEvent::IntegrationEventIgnored {
-                    event_id, connector_id: e.connector_id, external_id: e.external_id.clone(), reason: reason.clone(),
+                    event_id, company_id: e.company_id, connector_id: e.connector_id, external_id: e.external_id.clone(), reason: reason.clone(),
                 };
                 let mut tx = self.pool.begin().await?;
                 company_scope::bind_company_on(&mut tx, e.company_id).await?;

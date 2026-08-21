@@ -20,7 +20,7 @@ pub struct IntegrationEventMapped {
 pub enum IntegrationEvent {
     IntegrationEventMapped(IntegrationEventMapped),
     IntegrationEventFailed { event_id: Uuid, company_id: Uuid, connector_id: Uuid, external_id: String, reason: String },
-    IntegrationEventIgnored { event_id: Uuid, connector_id: Uuid, external_id: String, reason: String },
+    IntegrationEventIgnored { event_id: Uuid, company_id: Uuid, connector_id: Uuid, external_id: String, reason: String },
 }
 
 pub trait IntegrationEventSink: Send + Sync {
