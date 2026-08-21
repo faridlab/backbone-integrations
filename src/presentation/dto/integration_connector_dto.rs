@@ -20,6 +20,7 @@ use crate::domain::entity::IntegrationConnector;
 use crate::domain::entity::AuditMetadata;
 use crate::domain::entity::ConnectorDirection;
 use crate::domain::entity::ConnectorKind;
+use crate::domain::entity::ConnectorStatus;
 
 // =============================================================================
 // Create DTO
@@ -41,9 +42,7 @@ pub struct CreateIntegrationConnectorDto {
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
-    #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_active")]
-    pub is_active: bool,
+    pub status: ConnectorStatus,
 }
 
 // =============================================================================
@@ -66,9 +65,7 @@ pub struct UpdateIntegrationConnectorDto {
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
-    #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(alias = "is_active")]
-    pub is_active: bool,
+    pub status: ConnectorStatus,
 }
 
 // =============================================================================
@@ -94,15 +91,14 @@ pub struct PatchIntegrationConnectorDto {
     pub kind: Option<ConnectorKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<ConnectorDirection>,
-    #[cfg_attr(feature = "openapi", schema(example = true))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "is_active")]
-    pub is_active: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<ConnectorStatus>,
 }
 
 impl PatchIntegrationConnectorDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.is_active.is_some()
+        self.company_id.is_some() || self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.status.is_some()
     }
 }
 
@@ -126,8 +122,7 @@ pub struct IntegrationConnectorResponseDto {
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
-    #[cfg_attr(feature = "openapi", schema(example = true))]
-    pub is_active: bool,
+    pub status: ConnectorStatus,
     pub metadata: AuditMetadata,
 }
 
@@ -203,7 +198,7 @@ impl From<IntegrationConnector> for IntegrationConnectorResponseDto {
             provider: entity.provider,
             kind: entity.kind,
             direction: entity.direction,
-            is_active: entity.is_active,
+            status: entity.status,
             metadata: entity.metadata,
         }
     }
@@ -230,7 +225,7 @@ impl From<CreateIntegrationConnectorDto> for IntegrationConnector {
             provider: dto.provider,
             kind: dto.kind,
             direction: dto.direction,
-            is_active: dto.is_active,
+            status: dto.status,
             metadata: AuditMetadata::default(),
         }
     }
@@ -244,7 +239,7 @@ impl From<&IntegrationConnector> for IntegrationConnectorResponseDto {
             provider: entity.provider.clone(),
             kind: entity.kind.clone(),
             direction: entity.direction.clone(),
-            is_active: entity.is_active.clone(),
+            status: entity.status.clone(),
             metadata: entity.metadata.clone(),
         }
     }
@@ -262,7 +257,7 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationConnectorDto> for Integratio
         self.provider = dto.provider;
         self.kind = dto.kind;
         self.direction = dto.direction;
-        self.is_active = dto.is_active;
+        self.status = dto.status;
         Ok(self)
     }
 }
@@ -275,4 +270,3 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationConnectorDto> for Integratio
 // Add custom DTOs specific to IntegrationConnector here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
-

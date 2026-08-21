@@ -28,7 +28,7 @@ impl TestDataGenerator for IntegrationConnectorTestData {
             "provider": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "kind": "payment_gateway",
             "direction": "inbound",
-            "is_active": false,
+            "status": "active",
             "metadata": json!({}),
         })
     }
@@ -41,7 +41,7 @@ impl TestDataGenerator for IntegrationConnectorTestData {
             "provider": format!("Test {}", Uuid::new_v4().to_string().split('-').next().unwrap()),
             "kind": "payment_gateway",
             "direction": "inbound",
-            "is_active": false,
+            "status": "active",
             "metadata": json!({}),
         })
     }

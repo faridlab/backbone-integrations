@@ -32,10 +32,11 @@ models:
         type: ConnectorDirection
         attributes: ["@required", "@default(inbound)"]
         description: "Which directions this connector handles"
-      is_active:
-        type: boolean
-        attributes: ["@default(true)"]
-        description: "Only active connectors process events"
+      # replaces is_active (boolean flipped to lifecycle enum)
+      status:
+        type: ConnectorStatus
+        attributes: ["@default(active)"]
+        description: "Lifecycle (inactive connectors stop processing events; received events keep their connector reference)"
       metadata:
         type: Metadata
         attributes: ["@audit_metadata"]
@@ -68,3 +69,12 @@ enums:
         description: "We only send to the provider"
       - name: both
         description: "Inbound and outbound"
+
+  - name: ConnectorStatus
+    description: "Lifecycle of an integration connector"
+    variants:
+      - name: active
+        description: "Events are processed through this connector"
+        default: true
+      - name: inactive
+        description: "No new events; received events keep their connector reference"

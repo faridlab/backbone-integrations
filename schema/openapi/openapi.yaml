@@ -759,7 +759,7 @@ components:
         - provider
         - kind
         - direction
-        - is_active
+        - status
         - metadata
       properties:
         id:
@@ -774,8 +774,8 @@ components:
           type: string
         direction:
           type: string
-        is_active:
-          type: boolean
+        status:
+          type: string
         metadata:
           type: object
 
@@ -799,7 +799,7 @@ components:
         - provider
         - kind
         - direction
-        - is_active
+        - status
         - metadata
       properties:
         company_id:
@@ -811,8 +811,8 @@ components:
           type: string
         direction:
           type: string
-        is_active:
-          type: boolean
+        status:
+          type: string
         metadata:
           type: object
 
@@ -823,7 +823,7 @@ components:
         - provider
         - kind
         - direction
-        - is_active
+        - status
         - metadata
       properties:
         company_id:
@@ -835,8 +835,8 @@ components:
           type: string
         direction:
           type: string
-        is_active:
-          type: boolean
+        status:
+          type: string
         metadata:
           type: object
 
@@ -852,8 +852,8 @@ components:
           type: string
         direction:
           type: string
-        is_active:
-          type: boolean
+        status:
+          type: string
         metadata:
           type: object
 

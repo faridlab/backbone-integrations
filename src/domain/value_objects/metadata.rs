@@ -107,7 +107,7 @@ impl Metadata {
 
     /// Create a builder for Metadata
     pub fn builder() -> MetadataBuilder {
-        MetadataBuilder::default()
+        <MetadataBuilder as Default>::default()
     }
 
     // =================================================================

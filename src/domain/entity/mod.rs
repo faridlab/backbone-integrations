@@ -6,6 +6,7 @@ pub mod integration_connector;
 pub mod integration_event;
 pub mod connector_kind;
 pub mod connector_direction;
+pub mod connector_status;
 pub mod integration_status;
 
 // Re-exports
@@ -17,6 +18,7 @@ pub use integration_event::IntegrationEventBuilder;
 pub use integration_event::IntegrationEventId;
 pub use connector_kind::ConnectorKind;
 pub use connector_direction::ConnectorDirection;
+pub use connector_status::ConnectorStatus;
 pub use integration_status::IntegrationStatus;
 
 // ==========================================================================

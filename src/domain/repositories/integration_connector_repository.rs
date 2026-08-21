@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use anyhow::Result;
 use uuid::Uuid;
 
-use crate::domain::entity::{IntegrationConnector, ConnectorDirection, ConnectorKind};
+use crate::domain::entity::{IntegrationConnector, ConnectorDirection, ConnectorKind, ConnectorStatus};
 
 /// Pagination parameters for list queries
 #[derive(Debug, Clone, Default)]
@@ -48,13 +48,13 @@ pub struct IntegrationConnectorFilter {
     pub provider: Option<String>,
     pub kind: Option<ConnectorKind>,
     pub direction: Option<ConnectorDirection>,
-    pub is_active: Option<bool>,
+    pub status: Option<ConnectorStatus>,
 }
 
 impl IntegrationConnectorFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.is_active.is_some()
+        self.company_id.is_some() || self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.status.is_some()
     }
 }
 

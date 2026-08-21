@@ -52,7 +52,7 @@ pub struct IntegrationConnectorDto {
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
-    pub is_active: bool,
+    pub status: ConnectorStatus,
     pub metadata: serde_json::Value,
 }
 
@@ -60,6 +60,7 @@ pub struct IntegrationConnectorDto {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegrationConnectorSummary {
     pub id: IntegrationConnectorId,
+    pub status: ConnectorStatus,
 }
 
 /// Reference to IntegrationConnector for foreign key relationships

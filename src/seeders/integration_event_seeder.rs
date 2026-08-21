@@ -69,4 +69,3 @@ impl Seeder for SeedIntegrationEventSeeder {
 // <<< CUSTOM SEED DATA START >>>
 // Add custom seed data methods here
 // <<< CUSTOM SEED DATA END >>>
-

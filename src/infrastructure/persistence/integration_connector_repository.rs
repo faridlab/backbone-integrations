@@ -42,8 +42,8 @@ impl IntegrationConnectorRepository {
 
 /// The exact row a connector registration writes.
 ///
-/// Mirrors the raw column shape rather than the `IntegrationConnector` entity: `is_active` is the
-/// literal `true`, and `kind`/`direction` bind as `&str` with DB-side casts (`$4::connector_kind`,
+/// Mirrors the raw column shape rather than the `IntegrationConnector` entity: `status` is the
+/// literal `'active'`, and `kind`/`direction` bind as `&str` with DB-side casts (`$4::connector_kind`,
 /// `$5::connector_direction`) so an unknown value fails as a DB error rather than a deserialize panic.
 pub struct NewConnectorRow<'a> {
     pub id: Uuid,
@@ -56,7 +56,7 @@ pub struct NewConnectorRow<'a> {
 /// What an inbound event needs to know about its connector before it is admitted.
 pub struct ConnectorGateRow {
     pub kind: String,
-    pub is_active: bool,
+    pub status: String,
 }
 
 /// What a retry run needs: the connector's OWN company (the loop binds it explicitly) and its kind.
@@ -84,8 +84,8 @@ impl IntegrationConnectorRepository {
             pool,
             sqlx::query(
                 r#"INSERT INTO integrations.integration_connectors
-                     (id, company_id, provider, kind, direction, is_active)
-                   VALUES ($1,$2,$3,$4::connector_kind,$5::connector_direction,true)"#,
+                     (id, company_id, provider, kind, direction, status)
+                   VALUES ($1,$2,$3,$4::connector_kind,$5::connector_direction,'active')"#,
             )
             .bind(c.id).bind(c.company_id).bind(c.provider).bind(c.kind).bind(c.direction),
         )
@@ -106,13 +106,13 @@ impl IntegrationConnectorRepository {
         let row = company_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
-                r#"SELECT kind::text AS kind, is_active FROM integrations.integration_connectors
+                r#"SELECT kind::text AS kind, status::text AS status FROM integrations.integration_connectors
                    WHERE id=$1 AND (metadata->>'deleted_at') IS NULL"#,
             )
             .bind(connector_id),
         )
         .await?;
-        Ok(row.map(|r| ConnectorGateRow { kind: r.get("kind"), is_active: r.get("is_active") }))
+        Ok(row.map(|r| ConnectorGateRow { kind: r.get("kind"), status: r.get("status") }))
     }
 
     /// Read the connector a retry run re-drives, including its OWN company.

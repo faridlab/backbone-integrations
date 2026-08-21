@@ -185,4 +185,3 @@ pub fn create_protected_integration_connector_routes<A: AuthMiddleware + Send + 
             }
         }))
 }
-

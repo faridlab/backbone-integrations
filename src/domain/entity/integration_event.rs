@@ -68,7 +68,7 @@ pub struct IntegrationEvent {
 impl IntegrationEvent {
     /// Create a builder for IntegrationEvent
     pub fn builder() -> IntegrationEventBuilder {
-        IntegrationEventBuilder::default()
+        <IntegrationEventBuilder as Default>::default()
     }
 
     /// Create a new IntegrationEvent with required fields
@@ -370,7 +370,7 @@ impl IntegrationEventBuilder {
             event_type,
             external_id,
             business_key,
-            status: self.status.unwrap_or(IntegrationStatus::default()),
+            status: self.status.unwrap_or_default(),
             payload,
             mapped_ref_type: self.mapped_ref_type,
             mapped_ref_id: self.mapped_ref_id,

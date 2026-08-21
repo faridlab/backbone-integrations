@@ -5,6 +5,7 @@ use uuid::Uuid;
 
 use super::ConnectorKind;
 use super::ConnectorDirection;
+use super::ConnectorStatus;
 use super::AuditMetadata;
 
 /// Strongly-typed ID for IntegrationConnector
@@ -55,7 +56,7 @@ pub struct IntegrationConnector {
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
-    pub is_active: bool,
+    pub status: ConnectorStatus,
     #[serde(default)]
     #[sqlx(json)]
     pub metadata: AuditMetadata,
@@ -64,18 +65,18 @@ pub struct IntegrationConnector {
 impl IntegrationConnector {
     /// Create a builder for IntegrationConnector
     pub fn builder() -> IntegrationConnectorBuilder {
-        IntegrationConnectorBuilder::default()
+        <IntegrationConnectorBuilder as Default>::default()
     }
 
     /// Create a new IntegrationConnector with required fields
-    pub fn new(company_id: Uuid, provider: String, kind: ConnectorKind, direction: ConnectorDirection, is_active: bool) -> Self {
+    pub fn new(company_id: Uuid, provider: String, kind: ConnectorKind, direction: ConnectorDirection, status: ConnectorStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
             company_id,
             provider,
             kind,
             direction,
-            is_active,
+            status,
             metadata: AuditMetadata::default(),
         }
     }
@@ -130,6 +131,11 @@ impl IntegrationConnector {
         self.metadata.deleted_by.as_ref()
     }
 
+    /// Get the current status
+    pub fn status(&self) -> &ConnectorStatus {
+        &self.status
+    }
+
 
     // ==========================================================
     // Partial Update
@@ -151,8 +157,8 @@ impl IntegrationConnector {
                 "direction" => {
                     if let Ok(v) = serde_json::from_value(value) { self.direction = v; }
                 }
-                "is_active" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.is_active = v; }
+                "status" => {
+                    if let Ok(v) = serde_json::from_value(value) { self.status = v; }
                 }
                 _ => {} // ignore unknown fields
             }
@@ -211,6 +217,7 @@ impl backbone_orm::EntityRepoMeta for IntegrationConnector {
         m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("kind".to_string(), "connector_kind".to_string());
         m.insert("direction".to_string(), "connector_direction".to_string());
+        m.insert("status".to_string(), "connector_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
@@ -231,7 +238,7 @@ pub struct IntegrationConnectorBuilder {
     provider: Option<String>,
     kind: Option<ConnectorKind>,
     direction: Option<ConnectorDirection>,
-    is_active: Option<bool>,
+    status: Option<ConnectorStatus>,
 }
 
 impl IntegrationConnectorBuilder {
@@ -259,9 +266,9 @@ impl IntegrationConnectorBuilder {
         self
     }
 
-    /// Set the is_active field (default: `true`)
-    pub fn is_active(mut self, value: bool) -> Self {
-        self.is_active = Some(value);
+    /// Set the status field (default: `ConnectorStatus::default()`)
+    pub fn status(mut self, value: ConnectorStatus) -> Self {
+        self.status = Some(value);
         self
     }
 
@@ -278,8 +285,8 @@ impl IntegrationConnectorBuilder {
             company_id,
             provider,
             kind,
-            direction: self.direction.unwrap_or(ConnectorDirection::default()),
-            is_active: self.is_active.unwrap_or(true),
+            direction: self.direction.unwrap_or_default(),
+            status: self.status.unwrap_or_default(),
             metadata: AuditMetadata::default(),
         })
     }

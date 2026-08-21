@@ -38,7 +38,7 @@ async fn iip2_inactive_connector_rejected() {
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
     let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
-    sqlx::query("UPDATE integrations.integration_connectors SET is_active=false WHERE id=$1")
+    sqlx::query("UPDATE integrations.integration_connectors SET status='inactive' WHERE id=$1")
         .bind(conn).execute(&pool).await.unwrap();
     let r = svc.receive_event(event(company, conn, "n-x"), &FakeTarget::new(), &CapturingSink::new()).await;
     assert!(matches!(r, Err(IntegrationError::InvalidState(_))));

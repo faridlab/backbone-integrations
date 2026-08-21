@@ -30,7 +30,7 @@ impl Timestamps {
 
     /// Create a builder for Timestamps
     pub fn builder() -> TimestampsBuilder {
-        TimestampsBuilder::default()
+        <TimestampsBuilder as Default>::default()
     }
 
 }

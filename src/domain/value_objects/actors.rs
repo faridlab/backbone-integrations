@@ -42,7 +42,7 @@ impl Actors {
 
     /// Create a builder for Actors
     pub fn builder() -> ActorsBuilder {
-        ActorsBuilder::default()
+        <ActorsBuilder as Default>::default()
     }
 
 }
