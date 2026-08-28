@@ -12,6 +12,14 @@
 module: integrations
 version: 2
 schema: integrations
+
+# ADR-0014 company fence: connectors and integration events are company-private — every entity
+# here carries company_id and the shipped RLS migration
+# (migrations/20260426220003_enable_company_rls.up.sql) already enforces
+# company_id = app.company_id on integration_connectors and integration_events;
+# outbox_events carries its own tenant fence with the relay exemption
+# (migrations/20260726100000_fence_outbox_company_id.up.sql).
+company_fence: strict
 description: "integrations domain module"
 
 config:
