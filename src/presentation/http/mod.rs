@@ -9,10 +9,12 @@ pub mod integration_connector_handler;
 pub mod integration_event_handler;
 
 // <<< CUSTOM
+pub mod oauth_handler;
 // END CUSTOM
 
 // Re-exports
 pub use integration_connector_handler::{create_integration_connector_routes, create_integration_connector_read_routes, create_integration_connector_write_routes};
 pub use integration_event_handler::{create_integration_event_routes, create_integration_event_read_routes, create_integration_event_write_routes};
 // <<< CUSTOM
+pub use oauth_handler::{create_oauth_routes, require_principal, OAuthPrincipal};
 // END CUSTOM

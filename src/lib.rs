@@ -39,6 +39,17 @@ pub use application::service::IntegrationsWriteService;
 pub use application::service::{TargetPort, MapRequest, MapOutcome, MapRejected, MappedRef};
 pub use application::service::{InboundEvent, ReceiveOutcome, NewConnector, FailedEvent, IntegrationError};
 pub use application::service::{IntegrationEvent, IntegrationEventMapped, IntegrationEventSink, LoggingSink};
+// The OAuth credential port (ADR-0024 amendment: the store is reached through a port, never a
+// Cargo edge) — the types a composing host needs to bind the credential store for the OAuth flow.
+pub use application::service::{OAuthCredentialFailure, OAuthCredentialStore, PURPOSE_OAUTH_TOKEN, TokenBundle, TokenMetadata};
+// The one OAuth generation: the service + config a composing host binds (with the two ports it
+// runs on), and the outbound endpoint-guard surface its transport belongs to.
+pub use application::service::{
+    AccountStatus, AuthorizeRequest, AuthorizeResponse, CompleteOutcome, CompleteRequest,
+    IntegrationsOauthConfig, IntegrationsOauthService, OauthError, RefreshSummary,
+    STATE_TTL_SECONDS,
+};
+pub use infrastructure::http::{OAuthTransport, ReqwestOAuthTransport};
 // END CUSTOM
 // Re-exports - Workflows
 pub use application::workflows::*;
@@ -66,6 +77,9 @@ pub struct IntegrationsModule {
     /// The hand-authored receive/retry/map path. The module's reason for existing — without this field
     /// it's unreachable through the public API (CLAUDE.md: "MUST register every service in the {Domain}Module builder").
     pub integrations_write_service: Arc<IntegrationsWriteService>,
+    /// The one OAuth generation service. `Option` because composition opts in
+    /// (`with_oauth` + the two ports); `oauth_routes()` is empty without it.
+    pub integrations_oauth: Option<Arc<IntegrationsOauthService>>,
     // END CUSTOM
 }
 
@@ -135,12 +149,29 @@ impl IntegrationsModule {
             .merge(create_integration_connector_routes(self.integration_connector_service.clone()))
             .merge(create_integration_event_read_routes(self.integration_event_service.clone()))
     }
+
+    /// The verb-shaped OAuth surface (authorize / callback / complete /
+    /// disconnect / status). Empty when the module was built without
+    /// `with_oauth` — mounting it anyway is safe, it contributes no routes.
+    pub fn oauth_routes(&self) -> Router {
+        use presentation::http::create_oauth_routes;
+
+        match &self.integrations_oauth {
+            Some(service) => create_oauth_routes(service.clone()),
+            None => Router::new(),
+        }
+    }
     // END CUSTOM
 }
 
 /// Builder for IntegrationsModule
 pub struct IntegrationsModuleBuilder {
     db_pool: Option<PgPool>,
+    // <<< CUSTOM - OAuth generation fields (the one flow's construction inputs)
+    oauth_config: Option<IntegrationsOauthConfig>,
+    oauth_transport: Option<Arc<dyn OAuthTransport>>,
+    oauth_store: Option<Arc<dyn OAuthCredentialStore>>,
+    // END CUSTOM
 }
 
 impl IntegrationsModuleBuilder {
@@ -148,6 +179,11 @@ impl IntegrationsModuleBuilder {
     pub fn new() -> Self {
         Self {
             db_pool: None,
+            // <<< CUSTOM
+            oauth_config: None,
+            oauth_transport: None,
+            oauth_store: None,
+            // END CUSTOM
         }
     }
 
@@ -158,6 +194,29 @@ impl IntegrationsModuleBuilder {
     }
 
     // <<< CUSTOM - custom builder methods
+    /// Opt the module into the one OAuth generation. The config carries the
+    /// deployment's public base, per-provider clients, and endpoint overrides
+    /// — every override passes the endpoint guard at build time (a bad one
+    /// fails the build), and the state-signing key is read from the
+    /// environment variable the config names (never a file value).
+    pub fn with_oauth(mut self, config: IntegrationsOauthConfig) -> Self {
+        self.oauth_config = Some(config);
+        self
+    }
+
+    /// The outbound OAuth transport (token exchange + server-side identity
+    /// read). Defaults to [`ReqwestOAuthTransport`] when omitted.
+    pub fn with_oauth_transport(mut self, transport: Arc<dyn OAuthTransport>) -> Self {
+        self.oauth_transport = Some(transport);
+        self
+    }
+
+    /// Bind the credential store through the port (ADR-0024 amendment: no
+    /// Cargo edge — the host adapts its store onto these verbs).
+    pub fn with_oauth_store(mut self, store: Arc<dyn OAuthCredentialStore>) -> Self {
+        self.oauth_store = Some(store);
+        self
+    }
     // END CUSTOM
 
     /// Build the module with configured dependencies
@@ -177,6 +236,31 @@ impl IntegrationsModuleBuilder {
         // IntegrationsWrite service — the hand-authored receive/retry/map path; constructed alongside the
         // generated CRUD services so the module ships its whole public surface from the builder.
         let integrations_write_service = Arc::new(IntegrationsWriteService::new(db_pool.clone()));
+        // The one OAuth generation. Constructed only when composition opted in; a partial opt-in
+        // (config without both ports) is a build error, and IntegrationsOauthService::build
+        // re-validates everything fail-closed: the named env var must hold the state-signing key,
+        // public_base must be present, and every endpoint override must pass the guard.
+        let integrations_oauth = match (self.oauth_config, self.oauth_transport, self.oauth_store) {
+            (Some(config), transport, Some(store)) => {
+                let transport = match transport {
+                    Some(t) => t,
+                    None => Arc::new(ReqwestOAuthTransport::new()
+                        .map_err(|e| anyhow::anyhow!("building the default OAuth transport: {e}"))?),
+                };
+                Some(Arc::new(IntegrationsOauthService::build(
+                    db_pool.clone(),
+                    config,
+                    transport,
+                    store,
+                )?))
+            }
+            (Some(_), _, None) => {
+                return Err(anyhow::anyhow!(
+                    "with_oauth needs the credential store bound through the port: with_oauth_store(..)"
+                ))
+            }
+            (None, _, _) => None,
+        };
         // END CUSTOM
 
         Ok(IntegrationsModule {
@@ -184,6 +268,7 @@ impl IntegrationsModuleBuilder {
             integration_event_service,
             // <<< CUSTOM
             integrations_write_service,
+            integrations_oauth,
             // END CUSTOM
         })
     }

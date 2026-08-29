@@ -5,4 +5,6 @@
 pub mod persistence;
 
 // <<< CUSTOM
+pub mod http;
+pub mod jobs;
 // END CUSTOM

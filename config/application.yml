@@ -42,3 +42,37 @@ metrics:
   enabled: true
   endpoint: /metrics
   port: 9090
+# The one OAuth generation (opt-in from the module builder). clients.endpoints
+# are per-provider registrations; every endpoint override is validated against
+# the provider's host allowlist at build time and again per outbound call.
+# NO SECRETS HERE: client_secret stays out of this file (composition supplies
+# it out-of-band), and the state-signing key is read only from the environment
+# variable named below.
+oauth:
+  # The deployment base the OAuth redirect_uri is built from
+  # ({public_base}/api/v1/integrations/oauth/callback).
+  public_base: https://api.example.com
+  clients:
+    gmail:
+      client_id: replace-me
+    outlook:
+      client_id: replace-me
+    google_calendar:
+      client_id: replace-me
+    microsoft_calendar:
+      client_id: replace-me
+  # Empty by default: no override means the registry's built-in (validated)
+  # endpoints. Overrides land under the provider key, e.g.
+  #   endpoints:
+  #     gmail:
+  #       token: https://oauth2.googleapis.com/token
+  endpoints: {}
+  # Refresh before expiry by this many seconds (default 10 minutes).
+  refresh_window_seconds: 600
+  # Upper bound on accounts refreshed in one sweep.
+  refresh_batch_size: 100
+  # Declared admin bypass for the identity email match (shared mailboxes).
+  # Default OFF; every use is logged.
+  shared_mailbox_bypass: false
+  # Where the state-signing key comes from — an environment variable only.
+  state_secret_source: env:INTEGRATIONS_OAUTH_STATE_SECRET

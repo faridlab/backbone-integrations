@@ -33,4 +33,19 @@ events: {}
 # =============================================================================
 # Scheduled jobs
 # =============================================================================
-scheduled_jobs: {}
+scheduled_jobs:
+  refresh_oauth_credentials:
+    schedule: "*/15 * * * *"
+    handler: refresh_oauth_credentials
+    # ADR-0020 posture vocabulary:
+    #   posture: pull        — interval-driven scan; the interval is the floor, the account's
+    #                          honest expires_at is the contract (request-path lazy refresh rides
+    #                          the same due-window computation).
+    #   pickup_lock: true    — the due-claim reads FOR UPDATE SKIP LOCKED (one account per short
+    #                          transaction, the lock held through processing), so concurrent
+    #                          replicas take disjoint accounts instead of double-refreshing.
+    #   commit_policy: commit_per_batch — each account's refresh commits independently; one
+    #                          provider outage rolls back exactly its own account.
+    posture: pull
+    pickup_lock: true
+    commit_policy: commit_per_batch

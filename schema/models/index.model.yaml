@@ -76,3 +76,7 @@ shared_types:
 imports:
   - connector.model.yaml
   - integration_event.model.yaml
+  # OAuth account connections — entity/DTOs/repository/service generate, but the
+  # model disables its handler target: the surface is the verb-shaped OAuth
+  # routes (authorize/complete/disconnect/status), never generic CRUD.
+  - integration_account.model.yaml

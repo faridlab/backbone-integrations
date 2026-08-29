@@ -1,6 +1,6 @@
 [package]
 name = "backbone-integrations"
-version = "0.4.2"
+version = "0.4.3"
 edition = "2021"
 description = "Minimal Backbone Framework module skeleton"
 
@@ -53,10 +53,26 @@ validator = { version = "0.16", features = ["derive"] }
 # Error handling
 anyhow = "1.0"
 thiserror = "1.0"
+# In-memory token buffers for the OAuth credential port — zeroized on drop, redacted in Debug.
+zeroize = "1"
+
+# OAuth state signing + PKCE material (the one OAuth generation): HMAC-SHA256
+# over the state payload with constant-time comparison, SHA-256 for the PKCE
+# S256 challenge, base64url encoding, and randomness for verifier/nonce minting.
+hmac = "0.12"
+sha2 = "0.10"
+subtle = "2"
+base64 = "0.22"
+rand = "0.8"
 
 # Configuration
 config = "0.14"
 serde_yaml = "0.9"
+
+# Outbound OAuth transport — the token exchange and the server-side identity read are module
+# code (reached only through the endpoint guard's validated URLs); the client refuses redirects
+# and carries explicit timeouts.
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 
 # Protocol Buffers (Generated from Schema-First YAML)
 tonic = "0.12"
@@ -82,9 +98,9 @@ pretty_assertions = "1.0"
 
 # Integration testing framework — the generated tests/integration_tests.rs hits a live server
 # via reqwest; guarded-route probes hit the router in-process via tower's ServiceExt::oneshot.
-reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 jsonwebtoken = "9.3"
-rand = "0.8"
+# URL parsing for probe assertions over the authorize redirect the service builds.
+url = "2"
 # TEST-ONLY edge: the payment-gateway seam proves a settled-payment notification drives the REAL
 # backbone-payment write path (create_payment) via an in-test TargetPort. Dev-dependency ONLY — the shipped
 # library reaches a module through the port, never a Cargo edge.

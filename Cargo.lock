@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "backbone-integrations"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -286,8 +286,10 @@ dependencies = [
  "backbone-orm",
  "backbone-outbox",
  "backbone-payment",
+ "base64 0.22.1",
  "chrono",
  "config",
+ "hmac",
  "jsonwebtoken",
  "mockall",
  "pretty_assertions",
@@ -299,7 +301,9 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2",
  "sqlx",
+ "subtle",
  "tempfile",
  "thiserror 1.0.69",
  "tokio",
@@ -310,8 +314,10 @@ dependencies = [
  "tower-http 0.5.2",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
  "validator",
+ "zeroize",
 ]
 
 [[package]]

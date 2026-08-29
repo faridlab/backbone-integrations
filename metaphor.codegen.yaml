@@ -14,6 +14,23 @@ user_owned:
   - "src/application/service/integrations_events.rs"
   - "src/application/service/integrations_ports.rs"
   - "src/application/service/integrations_write_service.rs"
+  # The OAuth credential port (edge-free trait + secret-bearing TokenBundle) through which the
+  # OAuth flow reaches the credential store — declared here so the generator never touches it.
+  - "src/application/service/integrations_oauth_ports.rs"
+  # The one OAuth generation core (authorize/callback/complete/disconnect/status/refresh over the
+  # port + validated endpoints) and its verb-shaped HTTP surface — hand-authored, user-owned.
+  - "src/application/service/integrations_oauth.rs"
+  - "src/presentation/http/oauth_handler.rs"
+  # Outbound safety + scheduler (hand-authored): the fail-closed endpoint guard (provider
+  # registry, allowlist validation, OAuth transport port + reqwest implementation) and the
+  # refresh-before-expiry job the scheduled_jobs declaration names.
+  - "src/infrastructure/http/**"
+  - "src/infrastructure/jobs/**"
+  # Guard + scheduler probes (endpoint-rule matrix, DNS-range refusal, refresh/claim behavior).
+  - "tests/oauth_guard_scheduler_probes.rs"
+  # The one-OAuth-generation proof suite (state fence, gauntlet, honest expiry,
+  # port discipline, route fence, fail-closed authorization).
+  - "tests/oauth_generation_probes.rs"
   # Own the hand-written integrations SQL (the connector registration + gate reads, the
   # (connector, business_key) dedup claim + re-read, the mapped/ignored/failed transitions on both the
   # receive and the retry path) that the write service orchestrates. Declared here — not renamed with a
@@ -24,6 +41,10 @@ user_owned:
   - "tests/integrations_golden_cases.rs"
   - "tests/integrations_payment_seam.rs"
   - "tests/integrity_probes.rs"
+  # Shared test doubles (fake OAuth credential store, transport fakes as they land) + the
+  # port/fake semantics tests — hand-authored, never generated.
+  - "tests/common/**"
+  - "tests/oauth_port_fakes.rs"
   - "scripts/**"
   # Hand-authored behavior (services + their HTTP surface). Examples:
   # - "src/application/service/onboarding_service.rs"

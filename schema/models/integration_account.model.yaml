@@ -1,0 +1,116 @@
+# =============================================================================
+# Domain: Integrations
+# Entity: IntegrationAccount
+# Description: One OAuth account connection to an external provider (gmail /
+# outlook mail, Google / Microsoft calendar). The account row is the FLOW's own
+# bookkeeping — binding, lifecycle, and the honest expiry MIRROR. It carries NO
+# secret material: token bundles live only in the fenced credential store,
+# reached through the OAuthCredentialStore port (never a Cargo edge).
+#
+# The lifecycle is one hand_set enum (no boolean impostors): pending → active |
+# revoked; active → expired | revoked; expired and revoked are TERMINAL. A
+# re-authorization replaces a terminal row (delete + fresh insert) rather than
+# transitioning out of a terminal state — the same replacement-not-mutation
+# discipline the credential store's rotate lineage uses. ADR-0015 note: the
+# expires_at NOT-NULL-when-active rule is service-enforced on every write path
+# here, but raw SQL can null it — expiry truth lives in the store; this mirror
+# is advisory for the scheduler and API surface.
+# =============================================================================
+
+models:
+  - name: IntegrationAccount
+    collection: integration_accounts
+    description: "One OAuth account connection to an external provider (mail or calendar); flow state + honest-expiry mirror, never secret material"
+    generators:
+      disabled:
+        - handler
+        - usecase
+        - cqrs
+        - projection
+        - bulk-operations
+        - seeder
+        - integration-test
+        - openapi
+    fields:
+      id:
+        type: uuid
+        attributes: ["@id", "@default(uuid)"]
+        description: "Unique account id"
+      company_id:
+        type: uuid
+        attributes: ["@required", "@exclude_from_foreign_key_check"]
+        description: "Owning company # logical FK to organization.Company.id"
+      provider:
+        type: OAuthProvider
+        attributes: ["@required"]
+        description: "Which OAuth provider this account connects to (adapter data — endpoints, scopes, PKCE — comes from the provider registry)"
+      account_ref:
+        type: string
+        attributes: ["@required", "@length(max=120)"]
+        description: "The provider-side identity this account claims: the mailbox address for mail providers, the user subject (or address) for calendars. Verified against the provider's identity read before the account goes active"
+      # hand_set lifecycle (ADR-0016 pattern 2): pending → active | revoked;
+      # active → expired | revoked; expired/revoked terminal. `expired` is set
+      # by the refresh path when the provider answers invalid_grant (the user
+      # must reconnect); `revoked` by disconnect. Re-authorization replaces the
+      # row instead of un-terminal-ing it.
+      status:
+        type: IntegrationAccountStatus
+        attributes: ["@default(pending)"]
+        description: "Connection lifecycle (pending = authorization started, not yet verified; only status metadata crosses HTTP)"
+      scopes:
+        type: string
+        attributes: ["@default('')"]
+        description: "The scopes granted for this connection (space-delimited, as the provider echoes them)"
+      # Transient PKCE material — NOT a stored credential: single-use, lives
+      # only while status=pending, at most the state TTL, cleared the moment
+      # the code exchange consumes it. Never selected into any HTTP response
+      # and never sent anywhere except the one token-endpoint exchange.
+      pkce_verifier:
+        type: string?
+        attributes: ["@length(max=256)"]
+        description: "PKCE S256 code_verifier for the in-flight authorization (pending-only, single-use, cleared on completion)"
+      # Honest-expiry MIRROR of the stored credential's expires_at (set from
+      # the provider's real expires_in — never NULL while status=active on the
+      # service path). Advisory: the credential store is the expiry authority.
+      expires_at:
+        type: datetime?
+        description: "Mirror of the stored credential's honest expiry; drives refresh-before-expiry scheduling"
+      last_refreshed_at:
+        type: datetime?
+        description: "When the token bundle was last obtained or rotated (observability)"
+      metadata:
+        type: Metadata
+        attributes: ["@audit_metadata"]
+        description: "Audit metadata"
+    indexes:
+      - type: unique
+        fields: [company_id, provider, account_ref]
+      - type: index
+        fields: [company_id, status]
+
+enums:
+  - name: OAuthProvider
+    description: "The OAuth providers the one generation serves (they differ only in adapter data)"
+    variants:
+      - name: gmail
+        description: "Google mail (SMTP/IMAP via OAuth)"
+        default: true
+      - name: outlook
+        description: "Microsoft mail (SMTP/IMAP via OAuth)"
+      - name: google_calendar
+        description: "Google Calendar"
+      - name: microsoft_calendar
+        description: "Microsoft Outlook Calendar (Graph)"
+
+  - name: IntegrationAccountStatus
+    description: "Lifecycle of an OAuth account connection"
+    variants:
+      - name: pending
+        description: "Authorization started (state minted); not yet identity-verified"
+        default: true
+      - name: active
+        description: "Code exchanged, identity verified, credential stored; expires_at mirrored"
+      - name: expired
+        description: "Provider rejected the refresh grant (invalid_grant) — terminal; the user must reconnect (a fresh authorization replaces the row)"
+      - name: revoked
+        description: "Disconnected by an operator — terminal; credential revoked in the store"
