@@ -12,6 +12,12 @@ use uuid::Uuid;
 /// A request to map a parsed inbound event into an internal action.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct MapRequest {
+    /// Legacy tenancy twin (ADR-0029): the module itself is tenant-agnostic — its
+    /// tables carry no company column and the composing service's tenancy
+    /// decorator owns org scoping. The field stays because the TARGET modules on
+    /// the far side of this port (payment, selling, banking) may still be
+    /// company-fenced; the caller names the owning company and an unknown or
+    /// stale value fails closed at the target, never here.
     pub company_id: Uuid,
     pub connector_kind: String, // payment_gateway | marketplace | bank_feed | courier
     pub event_type: String,

@@ -119,13 +119,15 @@ fn mint_state(account_id: Uuid, provider: &str, nonce: &str, exp: i64) -> String
     )
 }
 
-/// The company's account rows (id, status, account_ref) — the snapshot the
-/// zero-write probes compare before/after a rejection.
-async fn account_rows(pool: &PgPool, company: Uuid) -> Vec<(Uuid, String, String)> {
+/// The given accounts' rows (id, status, account_ref) — the snapshot the
+/// zero-write probes compare before/after a rejection. Scoped by id: the
+/// table carries no company column (ADR-0029), and each probe names the
+/// accounts it created.
+async fn account_rows(pool: &PgPool, ids: &[Uuid]) -> Vec<(Uuid, String, String)> {
     sqlx::query_as(
-        "SELECT id, status::text, account_ref FROM integrations.integration_accounts WHERE company_id=$1 ORDER BY account_ref",
+        "SELECT id, status::text, account_ref FROM integrations.integration_accounts WHERE id = ANY($1) ORDER BY account_ref",
     )
-    .bind(company)
+    .bind(ids)
     .fetch_all(pool)
     .await
     .expect("snapshot account rows")
@@ -225,8 +227,10 @@ async fn ioa8_cross_provider_host_refused() {
 // IOA-9 — refresh-before-expiry: rotate lineage, honest new expiry, SKIP LOCKED
 // ─────────────────────────────────────────────────────────────────────────────
 
-// The sweep probes drive the UNSCOPED scheduler entry point (the declared
-// handler), which claims ANY due account. On the shared probe database that
+// The sweep probes drive the per-scope scheduler entry point (the declared
+// handler), which claims ANY due account; its `company` argument is the
+// credential store's scope key (the documented legacy twin). On the shared
+// probe database that
 // means sweep tests must not race each other's rows: serialize them on one
 // lock, and make every test that leaves a due row behind (the retryable
 // postures) retire it before releasing.
@@ -236,7 +240,9 @@ async fn sweep_gate() -> tokio::sync::MutexGuard<'static, ()> {
 }
 
 /// Seed one ACTIVE account row whose expiry mirror is `due_in` seconds away,
-/// and (unless `bare`) issue it a live credential in the fake store.
+/// and (unless `bare`) issue it a live credential in the fake store. The
+/// `company` is the credential store's scope key (the documented legacy
+/// twin) — the account row itself carries no company column.
 async fn seed_active_account(
     pool: &PgPool,
     company: Uuid,
@@ -247,11 +253,10 @@ async fn seed_active_account(
     let id = Uuid::new_v4();
     sqlx::query(
         r#"INSERT INTO integrations.integration_accounts
-               (id, company_id, provider, account_ref, status, scopes, expires_at)
-           VALUES ($1, $2, 'gmail', $3, 'active', '', now() + make_interval(secs => $4))"#,
+               (id, provider, account_ref, status, scopes, expires_at)
+           VALUES ($1, 'gmail', $2, 'active', '', now() + make_interval(secs => $3))"#,
     )
     .bind(id)
-    .bind(company)
     .bind(account_ref)
     .bind(due_in)
     .execute(pool)
@@ -300,7 +305,7 @@ async fn ioa9_due_account_rotates_with_new_honest_expiry() {
     let before_expires_at = Utc::now() + Duration::seconds(300);
 
     let report = refresh_oauth_credentials(
-        &pool, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
+        &pool, company, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
         &RefreshSchedule::default(),
     )
     .await
@@ -341,7 +346,7 @@ async fn ioa9_not_due_account_untouched() {
     let account = seed_active_account(&pool, company, "far-user@example.com", 86_400, &store).await;
 
     let report = refresh_oauth_credentials(
-        &pool, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
+        &pool, company, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
         &RefreshSchedule::default(),
     )
     .await
@@ -375,8 +380,8 @@ async fn ioa9_concurrent_runs_claim_disjoint_sets() {
     let ov = EndpointOverrides::default();
     let cl = clients();
     let (a, b) = tokio::join!(
-        refresh_oauth_credentials(&pool, &reg, &ov, &cl, &store, &transport, &schedule),
-        refresh_oauth_credentials(&pool, &reg, &ov, &cl, &store, &transport, &schedule),
+        refresh_oauth_credentials(&pool, company, &reg, &ov, &cl, &store, &transport, &schedule),
+        refresh_oauth_credentials(&pool, company, &reg, &ov, &cl, &store, &transport, &schedule),
     );
     let (a, b) = (a.expect("run a"), b.expect("run b"));
     assert_eq!(a.refreshed + b.refreshed, n, "every due account refreshed exactly once: {a:?} + {b:?}");
@@ -408,7 +413,7 @@ async fn ioa9_invalid_grant_expires_account() {
     let account = seed_active_account(&pool, company, "dead@example.com", 300, &store).await;
 
     let report = refresh_oauth_credentials(
-        &pool, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
+        &pool, company, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
         &RefreshSchedule::default(),
     )
     .await
@@ -433,7 +438,7 @@ async fn ioa9_store_outage_skips_not_expires() {
     store.fail_with(OAuthCredentialFailure::transport("store unreachable"));
 
     let report = refresh_oauth_credentials(
-        &pool, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
+        &pool, company, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
         &RefreshSchedule::default(),
     )
     .await
@@ -471,7 +476,7 @@ async fn ioa9_unstoreable_answer_skips() {
     let account = seed_active_account(&pool, company, "eternal@example.com", 300, &store).await;
 
     let report = refresh_oauth_credentials(
-        &pool, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
+        &pool, company, &registry(), &EndpointOverrides::default(), &clients(), &store, &transport,
         &RefreshSchedule::default(),
     )
     .await
@@ -500,19 +505,20 @@ async fn ioa9_unstoreable_answer_skips() {
 #[tokio::test]
 async fn ioa1_one_flow_serves_all_four_providers() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
     let transport = FakeTransport::default();
     let store = FakeStore::new();
     let svc = oauth_service(&pool, transport, store);
 
     let reg = registry();
     let mut envelope_keys: Option<Vec<String>> = None;
+    let mut ids: Vec<Uuid> = Vec::new();
     for provider in reg.providers() {
         let account_ref = if provider.contains("calendar") { "calendar-user-42".to_string() } else { format!("user-{provider}@example.com") };
         let resp = svc
-            .authorize(company, AuthorizeRequest { provider: provider.into(), account_ref, scopes: None })
+            .authorize(AuthorizeRequest { provider: provider.into(), account_ref, scopes: None })
             .await
             .unwrap_or_else(|e| panic!("{provider}: authorize through the one flow failed: {e}"));
+        ids.push(resp.account_id);
 
         // ONE state envelope for every provider: same field set, same shape.
         let claims = decode_state(&state_of(&resp.authorize_url));
@@ -559,7 +565,7 @@ async fn ioa1_one_flow_serves_all_four_providers() {
     }
 
     // Four pending accounts, one per provider, all through the same path.
-    let rows = account_rows(&pool, company).await;
+    let rows = account_rows(&pool, &ids).await;
     assert_eq!(rows.len(), 4);
     assert!(rows.iter().all(|(_, s, _)| s == "pending"));
 }
@@ -569,10 +575,9 @@ async fn ioa1_one_flow_serves_all_four_providers() {
 #[tokio::test]
 async fn ioa1_mail_providers_require_email_account_ref() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
     let svc = oauth_service(&pool, FakeTransport::default(), FakeStore::new());
     let r = svc
-        .authorize(company, AuthorizeRequest { provider: "gmail".into(), account_ref: "not-an-email".into(), scopes: None })
+        .authorize(AuthorizeRequest { provider: "gmail".into(), account_ref: "not-an-email".into(), scopes: None })
         .await;
     assert!(r.is_err(), "a gmail account_ref that is not an address must be refused at initiation");
 }
@@ -605,11 +610,11 @@ async fn ioa2_state_fence_rejects_every_forgery_class() {
     let svc = oauth_service(&pool, transport.clone(), store.clone());
 
     let resp = svc
-        .authorize(company, AuthorizeRequest { provider: "gmail".into(), account_ref: "fence@example.com".into(), scopes: None })
+        .authorize(AuthorizeRequest { provider: "gmail".into(), account_ref: "fence@example.com".into(), scopes: None })
         .await
         .expect("authorize");
     let good_state = state_of(&resp.authorize_url);
-    let snapshot = account_rows(&pool, company).await;
+    let snapshot = account_rows(&pool, &[resp.account_id]).await;
 
     // Garbage (the old flow's unsigned "state").
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: "garbage".into() }).await;
@@ -627,7 +632,7 @@ async fn ioa2_state_fence_rejects_every_forgery_class() {
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: alien }).await;
     assert!(matches!(r, Err(backbone_integrations::application::service::integrations_oauth::OauthError::State(_))), "cross-provider state accepted: {r:?}");
 
-    assert_eq!(account_rows(&pool, company).await, snapshot, "a forged state changed rows");
+    assert_eq!(account_rows(&pool, &[resp.account_id]).await, snapshot, "a forged state changed rows");
     assert!(store.calls().is_empty(), "a forged state touched the credential store");
     assert_eq!(transport.call_count(), 0, "a forged state reached the network");
 }
@@ -662,7 +667,7 @@ async fn ioa3_flipped_signature_byte_rejected_no_side_effects() {
     let svc = oauth_service(&pool, transport.clone(), store.clone());
 
     let resp = svc
-        .authorize(company, AuthorizeRequest { provider: "gmail".into(), account_ref: "csrf@example.com".into(), scopes: None })
+        .authorize(AuthorizeRequest { provider: "gmail".into(), account_ref: "csrf@example.com".into(), scopes: None })
         .await
         .expect("authorize");
     let state = state_of(&resp.authorize_url);
@@ -670,7 +675,7 @@ async fn ioa3_flipped_signature_byte_rejected_no_side_effects() {
     let flipped = flip_a_byte(&state, 1);
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: flipped }).await;
     assert!(r.is_err(), "a flipped signature byte passed verification");
-    let rows = account_rows(&pool, company).await;
+    let rows = account_rows(&pool, &[resp.account_id]).await;
     assert_eq!(rows.len(), 1, "the pending account is the only row");
     assert_eq!(rows[0].1, "pending", "the account stays pending");
     assert!(store.calls().is_empty(), "no credential was issued for a forged state");
@@ -687,7 +692,7 @@ async fn ioa3_flipped_signature_byte_rejected_no_side_effects() {
 async fn ioa4_control_matching_audience_and_nonce_complete() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let resp_authorize = run_authorize(&pool, company, "match@example.com").await;
+    let resp_authorize = run_authorize(&pool, "match@example.com").await;
     let claims = decode_state(&resp_authorize.state);
     let nonce = claims["nonce"].as_str().unwrap().to_string();
 
@@ -713,7 +718,7 @@ async fn ioa4_realistic_echo_request_carries_nonce_idtoken_completes() {
     let company = Uuid::new_v4();
     let svc = oauth_service(&pool, FakeTransport::default(), FakeStore::new());
     let resp = svc
-        .authorize(company, AuthorizeRequest { provider: "gmail".into(), account_ref: "echo@example.com".into(), scopes: None })
+        .authorize(AuthorizeRequest { provider: "gmail".into(), account_ref: "echo@example.com".into(), scopes: None })
         .await
         .expect("authorize");
     let url = url::Url::parse(&resp.authorize_url).unwrap();
@@ -751,25 +756,25 @@ async fn ioa4_audience_and_nonce_mismatches_rejected_zero_writes() {
     let company = Uuid::new_v4();
 
     // Audience mismatch.
-    let a = run_authorize(&pool, company, "aud@example.com").await;
+    let a = run_authorize(&pool, "aud@example.com").await;
     let nonce = decode_state(&a.state)["nonce"].as_str().unwrap().to_string();
     let transport = FakeTransport::happy("aud@example.com", "attacker-client-id", &nonce);
     let store = FakeStore::new();
     let svc = oauth_service(&pool, transport, store.clone());
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: a.state }).await;
     assert!(r.is_err(), "token with the attacker's audience accepted");
-    assert_eq!(account_rows(&pool, company).await.len(), 1);
-    assert_eq!(account_rows(&pool, company).await[0].1, "pending", "audience mismatch must leave the account pending");
+    assert_eq!(account_rows(&pool, &[a.account_id]).await.len(), 1);
+    assert_eq!(account_rows(&pool, &[a.account_id]).await[0].1, "pending", "audience mismatch must leave the account pending");
     assert!(store.calls().is_empty() && store.rotate_count() == 0, "audience mismatch wrote to the store");
 
     // Nonce mismatch (audience correct — exactly one gate at a time).
-    let b = run_authorize(&pool, company, "nonce@example.com").await;
+    let b = run_authorize(&pool, "nonce@example.com").await;
     let transport = FakeTransport::happy("nonce@example.com", "client-gmail", "a-different-nonce");
     let store = FakeStore::new();
     let svc = oauth_service(&pool, transport, store.clone());
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: b.state }).await;
     assert!(r.is_err(), "replayed nonce accepted");
-    assert_eq!(account_rows(&pool, company).await[1].1, "pending", "nonce mismatch must leave the account pending");
+    assert_eq!(account_rows(&pool, &[a.account_id, b.account_id]).await[1].1, "pending", "nonce mismatch must leave the account pending");
     assert!(store.calls().is_empty() && store.rotate_count() == 0, "nonce mismatch wrote to the store");
 }
 
@@ -783,7 +788,7 @@ async fn ioa4_audience_and_nonce_mismatches_rejected_zero_writes() {
 async fn ioa5_identity_email_mismatch_rejected() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let a = run_authorize(&pool, company, "victim@example.com").await;
+    let a = run_authorize(&pool, "victim@example.com").await;
     let nonce = decode_state(&a.state)["nonce"].as_str().unwrap().to_string();
 
     // The attacker's mailbox on a valid token for THIS client+nonce.
@@ -792,11 +797,11 @@ async fn ioa5_identity_email_mismatch_rejected() {
     let svc = oauth_service(&pool, transport, store.clone());
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: a.state }).await;
     assert!(r.is_err(), "identity email ≠ account_ref accepted (the token-substitution link attack)");
-    assert_eq!(account_rows(&pool, company).await[0].1, "pending", "the victim's account stays pending");
+    assert_eq!(account_rows(&pool, &[a.account_id]).await[0].1, "pending", "the victim's account stays pending");
     assert!(store.calls().is_empty(), "no credential issued for a substituted identity");
 
     // Unverified email is refused outright.
-    let b = run_authorize(&pool, company, "unverified@example.com").await;
+    let b = run_authorize(&pool, "unverified@example.com").await;
     let nonce_b = decode_state(&b.state)["nonce"].as_str().unwrap().to_string();
     let transport = FakeTransport::happy("unverified@example.com", "client-gmail", &nonce_b);
     transport.set_identity(backbone_integrations::infrastructure::http::IdentityClaims {
@@ -822,7 +827,7 @@ async fn ioa5_identity_email_mismatch_rejected() {
 async fn ioa6_stored_credential_and_mirror_carry_honest_expiry() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let a = run_authorize(&pool, company, "honest@example.com").await;
+    let a = run_authorize(&pool, "honest@example.com").await;
     let nonce = decode_state(&a.state)["nonce"].as_str().unwrap().to_string();
     let transport = FakeTransport::happy("honest@example.com", "client-gmail", &nonce);
     let store = FakeStore::new();
@@ -861,7 +866,7 @@ async fn ioa6_stored_credential_and_mirror_carry_honest_expiry() {
 async fn ioa6_permanent_token_refused_as_unstoreable() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let a = run_authorize(&pool, company, "eternal2@example.com").await;
+    let a = run_authorize(&pool, "eternal2@example.com").await;
     let nonce = decode_state(&a.state)["nonce"].as_str().unwrap().to_string();
     let transport = FakeTransport::happy("eternal2@example.com", "client-gmail", &nonce);
     transport.set_token_response(TokenResponse {
@@ -878,7 +883,7 @@ async fn ioa6_permanent_token_refused_as_unstoreable() {
     let r = svc.complete(company, CompleteRequest { code: "c".into(), state: a.state }).await;
     assert!(matches!(r, Err(backbone_integrations::application::service::integrations_oauth::OauthError::Unstoreable(_))), "a permanent token was stored: {r:?}");
     assert!(store.calls().is_empty(), "nothing reached the store");
-    assert_eq!(account_rows(&pool, company).await[0].1, "pending", "the account stays pending");
+    assert_eq!(account_rows(&pool, &[a.account_id]).await[0].1, "pending", "the account stays pending");
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -892,7 +897,7 @@ async fn ioa6_permanent_token_refused_as_unstoreable() {
 async fn ioa7_all_credential_contact_rides_the_port() {
     let pool = pool().await;
     let company = Uuid::new_v4();
-    let a = run_authorize(&pool, company, "port@example.com").await;
+    let a = run_authorize(&pool, "port@example.com").await;
     let nonce = decode_state(&a.state)["nonce"].as_str().unwrap().to_string();
     let transport = FakeTransport::happy("port@example.com", "client-gmail", &nonce);
     let store = FakeStore::new();
@@ -903,7 +908,7 @@ async fn ioa7_all_credential_contact_rides_the_port() {
 
     let verbs: Vec<&'static str> = store.calls().iter().map(call_verb).collect();
     assert_eq!(verbs, vec!["issue", "revoke"], "exactly an issue then a revoke — no other store contact: {verbs:?}");
-    let row_status = account_rows(&pool, company).await[0].1.clone();
+    let row_status = account_rows(&pool, &[a.account_id]).await[0].1.clone();
     assert_eq!(row_status, "revoked", "disconnect is terminal on the account");
 
     // The account relation has no token-shaped columns (schema-level: no
@@ -939,14 +944,13 @@ fn call_verb(c: &StoreCall) -> &'static str {
 #[tokio::test]
 async fn ioa10_callback_page_writes_nothing() {
     let pool = pool().await;
-    let company = Uuid::new_v4();
-    let a = run_authorize(&pool, company, "cb@example.com").await;
+    let a = run_authorize(&pool, "cb@example.com").await;
     let store = FakeStore::new();
     let svc = oauth_service(&pool, FakeTransport::default(), store.clone());
 
-    let snapshot = account_rows(&pool, company).await;
+    let snapshot = account_rows(&pool, &[a.account_id]).await;
     let page = svc.callback_page("AUTH-CODE", &a.state).expect("callback page");
-    assert_eq!(account_rows(&pool, company).await, snapshot, "the GET callback changed rows");
+    assert_eq!(account_rows(&pool, &[a.account_id]).await, snapshot, "the GET callback changed rows");
     assert!(store.calls().is_empty());
 
     // The RFC-8058 shape: a form POSTing code+state to the RELATIVE
@@ -960,7 +964,7 @@ async fn ioa10_callback_page_writes_nothing() {
     // Garbage state on the GET → rejection, still zero writes.
     let r = svc.callback_page("c", "garbage");
     assert!(r.is_err());
-    assert_eq!(account_rows(&pool, company).await, snapshot);
+    assert_eq!(account_rows(&pool, &[a.account_id]).await, snapshot);
 }
 
 /// authorize helper returning (account_id, state) for gauntlet probes.
@@ -969,10 +973,10 @@ struct Authorized {
     state: String,
 }
 
-async fn run_authorize(pool: &PgPool, company: Uuid, account_ref: &str) -> Authorized {
+async fn run_authorize(pool: &PgPool, account_ref: &str) -> Authorized {
     let svc = oauth_service(pool, FakeTransport::default(), FakeStore::new());
     let resp = svc
-        .authorize(company, AuthorizeRequest { provider: "gmail".into(), account_ref: account_ref.into(), scopes: None })
+        .authorize(AuthorizeRequest { provider: "gmail".into(), account_ref: account_ref.into(), scopes: None })
         .await
         .expect("authorize");
     Authorized { account_id: resp.account_id, state: state_of(&resp.authorize_url) }
@@ -1087,7 +1091,6 @@ async fn ioa2_forged_state_on_the_http_verb_is_a_400_with_zero_writes() {
     let store = FakeStore::new();
     let router = create_oauth_routes(Arc::new(oauth_service(&pool, transport.clone(), store.clone())));
 
-    let before = account_rows(&pool, company).await;
     let req = Request::builder()
         .method(Method::POST)
         .uri("/oauth/complete")
@@ -1100,7 +1103,9 @@ async fn ioa2_forged_state_on_the_http_verb_is_a_400_with_zero_writes() {
     let body = body_text(response).await;
     assert!(body.contains("OAUTH_STATE_REJECTED"), "the rejection names the state fence: {body}");
 
-    assert_eq!(account_rows(&pool, company).await, before, "zero rows written");
+    // Zero writes: a forged state names no account, so there is no row scope
+    // to snapshot — the proof sits at the seams (no store verb, no outbound
+    // call; the state fence refused before any row was read).
     assert!(store.calls().is_empty(), "zero credential verbs");
     assert_eq!(transport.call_count(), 0, "zero outbound calls");
 }
@@ -1227,7 +1232,7 @@ async fn ioa11_verbs_enforce_their_own_permissions() {
         .parse()
         .expect("account_id is a uuid");
 
-    let rows = account_rows(&pool, company).await;
+    let rows = account_rows(&pool, &[account_id]).await;
     assert_eq!(rows.len(), 1, "the HTTP authorize wrote exactly one pending row");
     assert_eq!(rows[0].0, account_id);
     assert_eq!(rows[0].1, "pending");
@@ -1265,7 +1270,7 @@ async fn ioa11_verbs_enforce_their_own_permissions() {
         .expect("request");
     let response = router.clone().oneshot(complete).await.expect("oneshot");
     assert_eq!(response.status(), StatusCode::OK, "complete with the write grant");
-    let rows = account_rows(&pool, company).await;
+    let rows = account_rows(&pool, &[account_id]).await;
     assert_eq!(rows[0].1, "active", "the HTTP complete activated the account");
     assert_eq!(call_verb(&store.calls()[0]), "issue", "the credential was issued through the port");
 

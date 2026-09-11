@@ -17,10 +17,6 @@ models:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique event id"
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Org owner # logical FK to organization.Company.id"
       connector_id:
         type: uuid
         attributes: ["@required", "@foreign_key(IntegrationConnector.id)"]
@@ -68,8 +64,8 @@ models:
       # 2026-07-11).
       - type: unique
         fields: [connector_id, business_key]
-      - type: index
-        fields: [company_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic; the
+      # composing service's tenancy decorator owns org scoping for this table.
 
 enums:
   - name: IntegrationStatus

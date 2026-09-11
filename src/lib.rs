@@ -30,6 +30,7 @@ pub use infrastructure::persistence::*;
 
 // Re-exports - Application services
 pub use application::service::IntegrationConnectorService;
+pub use application::service::IntegrationAccountService;
 pub use application::service::IntegrationEventService;
 
 // <<< CUSTOM
@@ -72,6 +73,7 @@ use sqlx::PgPool;
 /// ```
 pub struct IntegrationsModule {
     pub(crate) integration_connector_service: Arc<IntegrationConnectorService>,
+    pub(crate) integration_account_service: Arc<IntegrationAccountService>,
     pub(crate) integration_event_service: Arc<IntegrationEventService>,
     // <<< CUSTOM FIELDS
     /// The hand-authored receive/retry/map path. The module's reason for existing — without this field
@@ -228,6 +230,10 @@ impl IntegrationsModuleBuilder {
         let integration_connector_repository = Arc::new(IntegrationConnectorRepository::new(db_pool.clone()));
         let integration_connector_service = Arc::new(IntegrationConnectorService::with_repository(integration_connector_repository.clone()));
 
+        // IntegrationAccount service
+        let integration_account_repository = Arc::new(IntegrationAccountRepository::new(db_pool.clone()));
+        let integration_account_service = Arc::new(IntegrationAccountService::with_repository(integration_account_repository.clone()));
+
         // IntegrationEvent service
         let integration_event_repository = Arc::new(IntegrationEventRepository::new(db_pool.clone()));
         let integration_event_service = Arc::new(IntegrationEventService::with_repository(integration_event_repository.clone()));
@@ -265,6 +271,7 @@ impl IntegrationsModuleBuilder {
 
         Ok(IntegrationsModule {
             integration_connector_service,
+            integration_account_service,
             integration_event_service,
             // <<< CUSTOM
             integrations_write_service,

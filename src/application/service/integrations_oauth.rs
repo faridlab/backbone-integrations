@@ -24,6 +24,16 @@
 //! it). Its lifecycle is one hand_set enum: pending → active | revoked,
 //! active → expired | revoked, with expired/revoked terminal — a
 //! re-authorization replaces the row rather than un-terminal-ing it.
+//!
+//! Tenancy (ADR-0029): the module's tables carry no company column — the
+//! composing service's tenancy decorator owns org scoping (org_unit_id +
+//! RLS + the per-unit uniqueness). The `company_id` that remains on these
+//! verbs is the documented legacy twin: it is ONLY the credential-store
+//! scope key (the store across the port is still company-scoped); the
+//! caller (the composing host, which knows the tenant) names it, and an
+//! unknown value fails closed at the store — an honest `not_found` — never
+//! inside this module. `authorize` and `status` touch no store, so they
+//! take none.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -41,6 +51,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::application::service::integrations_oauth_ports::{
     OAuthCredentialFailure, OAuthCredentialStore, PURPOSE_OAUTH_TOKEN, TokenBundle,
@@ -247,7 +258,6 @@ fn mint_nonce() -> String {
 #[derive(Debug, sqlx::FromRow)]
 pub struct AccountRow {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub provider: String,
     pub account_ref: String,
     pub status: String,
@@ -449,12 +459,9 @@ impl IntegrationsOauthService {
     /// provider-side identity, replaces any existing row for the scope with a
     /// FRESH pending account (terminal statuses are never transitioned out
     /// of), mints the PKCE verifier + Tier-A state, and returns the provider
-    /// authorize URL. Zero store contact on this path.
-    pub async fn authorize(
-        &self,
-        company_id: Uuid,
-        req: AuthorizeRequest,
-    ) -> Result<AuthorizeResponse, OauthError> {
+    /// authorize URL. Zero store contact on this path (and no company
+    /// parameter — the module's rows are unfenced; ADR-0029).
+    pub async fn authorize(&self, req: AuthorizeRequest) -> Result<AuthorizeResponse, OauthError> {
         let provider = req.provider.trim().to_string();
         let adapter = self
             .registry
@@ -481,27 +488,29 @@ impl IntegrationsOauthService {
 
         // Fresh pending row: replace-on-reauthorize (a terminal row is deleted,
         // never resurrected). The PKCE verifier rides the pending row — the
-        // state's account binding is what makes it recoverable.
+        // state's account binding is what makes it recoverable. Tenancy
+        // (ADR-0029): the module invents no scope — the transaction binds the
+        // composing service's ambient org scope when one is resolved (the
+        // decorator's org fence and per-unit uniqueness then apply) and runs
+        // unscoped otherwise, where a decorated deployment refuses it.
         let verifier = if adapter.pkce_s256 { Some(mint_pkce_verifier()) } else { None };
         let account_id = Uuid::new_v4();
         let mut tx = self.pool.begin().await?;
-        company_scope::bind_company_on(&mut tx, company_id).await?;
+        bind_ambient_org_scope(&mut tx).await?;
         sqlx::query(
             "DELETE FROM integrations.integration_accounts
-              WHERE company_id = $1 AND provider = $2::o_auth_provider AND account_ref = $3",
+              WHERE provider = $1::o_auth_provider AND account_ref = $2",
         )
-        .bind(company_id)
         .bind(&provider)
         .bind(&account_ref)
         .execute(&mut *tx)
         .await?;
         sqlx::query(
             "INSERT INTO integrations.integration_accounts
-                 (id, company_id, provider, account_ref, status, scopes, pkce_verifier)
-             VALUES ($1, $2, $3::o_auth_provider, $4, 'pending', $5, $6)",
+                 (id, provider, account_ref, status, scopes, pkce_verifier)
+             VALUES ($1, $2::o_auth_provider, $3, 'pending', $4, $5)",
         )
         .bind(account_id)
-        .bind(company_id)
         .bind(&provider)
         .bind(&account_ref)
         .bind(&scopes)
@@ -577,6 +586,8 @@ impl IntegrationsOauthService {
     /// provider-side identity must match the claimed `account_ref`. Only
     /// then is the bundle stored (honest expiry, never NULL) and the account
     /// transitioned pending → active. ANY rejection leaves zero writes.
+    /// `company_id` is the credential-store scope key (the legacy tenancy
+    /// twin, ADR-0029) — the module's own rows are unfenced.
     pub async fn complete(
         &self,
         company_id: Uuid,
@@ -584,7 +595,7 @@ impl IntegrationsOauthService {
     ) -> Result<CompleteOutcome, OauthError> {
         let state = self.signer.verify(&req.state)?;
         let account = self
-            .fetch_account(company_id, state.account_id)
+            .fetch_account(state.account_id)
             .await?
             .ok_or(OauthError::NotFound)?;
         if account.provider != state.provider {
@@ -607,19 +618,22 @@ impl IntegrationsOauthService {
 
         // The exchange form. The PKCE verifier comes from the pending account
         // row (the state's binding makes it recoverable server-side only).
-        // Scoped to the company — the forced RLS fence hides the row otherwise.
+        // ID-only (ADR-0029): the read rides the composing service's
+        // request-dedicated connection when one is bound — the decorator's
+        // org fence hides another tenant's row — else runs plainly on the pool.
         let verifier = if adapter.pkce_s256 {
-            let fetch = sqlx::query_scalar::<_, Option<String>>(
-                "SELECT pkce_verifier FROM integrations.integration_accounts WHERE id = $1 AND company_id = $2",
+            let stored = company_scope::fetch_optional_scalar_scoped(
+                &self.pool,
+                sqlx::query_scalar::<_, Option<String>>(
+                    "SELECT pkce_verifier FROM integrations.integration_accounts WHERE id = $1",
+                )
+                .bind(state.account_id),
             )
-            .bind(state.account_id)
-            .bind(company_id);
-            let stored = company_scope::with_company_scope(Some(company_id), fetch.fetch_optional(&self.pool))
-                .await
-                .map_err(OauthError::Db)?
-                .flatten()
-                .filter(|v| !v.is_empty())
-                .ok_or(OauthError::State("pending authorization has no PKCE verifier".into()))?;
+            .await
+            .map_err(OauthError::Db)?
+            .flatten()
+            .filter(|v| !v.is_empty())
+            .ok_or(OauthError::State("pending authorization has no PKCE verifier".into()))?;
             Some(stored)
         } else {
             None
@@ -719,21 +733,24 @@ impl IntegrationsOauthService {
         }
 
         let scopes = response.scope.clone().unwrap_or_default();
-        let transition = sqlx::query(
-            "UPDATE integrations.integration_accounts
-                SET status = 'active', scopes = $3, expires_at = $4,
-                    last_refreshed_at = $5, pkce_verifier = NULL
-              WHERE id = $1 AND company_id = $2 AND status = 'pending'",
+        // ID-only, state-guarded transition (ADR-0029): rides the
+        // request-dedicated connection when the composing service bound one,
+        // else plainly on the pool.
+        let updated = company_scope::execute_scoped(
+            &self.pool,
+            sqlx::query(
+                "UPDATE integrations.integration_accounts
+                    SET status = 'active', scopes = $2, expires_at = $3,
+                        last_refreshed_at = $4, pkce_verifier = NULL
+                  WHERE id = $1 AND status = 'pending'",
+            )
+            .bind(state.account_id)
+            .bind(&scopes)
+            .bind(expires_at)
+            .bind(now),
         )
-        .bind(state.account_id)
-        .bind(company_id)
-        .bind(&scopes)
-        .bind(expires_at)
-        .bind(now);
-        let updated =
-            company_scope::with_company_scope(Some(company_id), transition.execute(&self.pool))
-                .await
-                .map_err(OauthError::Db)?;
+        .await
+        .map_err(OauthError::Db)?;
         if updated.rows_affected() != 1 {
             return Err(OauthError::State("authorization was completed concurrently".into()));
         }
@@ -753,9 +770,11 @@ impl IntegrationsOauthService {
     /// Disconnect: revoke the scope's credential through the port (a scope
     /// that never had one revokes cleanly), then transition the account to
     /// its terminal `revoked`. Idempotent for an already-revoked account.
+    /// `company_id` is the credential-store scope key (the legacy tenancy
+    /// twin, ADR-0029).
     pub async fn disconnect(&self, company_id: Uuid, account_id: Uuid) -> Result<(), OauthError> {
         let account = self
-            .fetch_account(company_id, account_id)
+            .fetch_account(account_id)
             .await?
             .ok_or(OauthError::NotFound)?;
         if account.status == "revoked" {
@@ -768,24 +787,30 @@ impl IntegrationsOauthService {
             Err(f) if f.code == OAuthCredentialFailure::CODE_NOT_FOUND => {}
             Err(f) => return Err(OauthError::Store(f.to_string())),
         }
-        let transition = sqlx::query(
-            "UPDATE integrations.integration_accounts
-                SET status = 'revoked', pkce_verifier = NULL
-              WHERE id = $1 AND company_id = $2 AND status IN ('pending', 'active')",
+        // ID-only, state-guarded transition (ADR-0029): rides the
+        // request-dedicated connection when the composing service bound one,
+        // else plainly on the pool.
+        company_scope::execute_scoped(
+            &self.pool,
+            sqlx::query(
+                "UPDATE integrations.integration_accounts
+                    SET status = 'revoked', pkce_verifier = NULL
+                  WHERE id = $1 AND status IN ('pending', 'active')",
+            )
+            .bind(account_id),
         )
-        .bind(account_id)
-        .bind(company_id);
-        company_scope::with_company_scope(Some(company_id), transition.execute(&self.pool))
-            .await
-            .map_err(OauthError::Db)?;
+        .await
+        .map_err(OauthError::Db)?;
         Ok(())
     }
 
     // ── 5. status ───────────────────────────────────────────────────────────
 
     /// The account's metadata (never secret material — none exists on the row).
-    pub async fn status(&self, company_id: Uuid, account_id: Uuid) -> Result<AccountStatus, OauthError> {
-        self.fetch_account(company_id, account_id)
+    /// No company parameter: the read is ID-only and the decorator's org fence
+    /// scopes it (ADR-0029).
+    pub async fn status(&self, account_id: Uuid) -> Result<AccountStatus, OauthError> {
+        self.fetch_account(account_id)
             .await?
             .map(Into::into)
             .ok_or(OauthError::NotFound)
@@ -794,31 +819,35 @@ impl IntegrationsOauthService {
     // ── 6. refresh (service-internal; the scheduler and the request path
     //        both land here) ────────────────────────────────────────────────
 
-    /// Refresh every due account for ONE company (the host enumerates
-    /// companies; under FORCE RLS a job cannot self-enumerate). Each account
-    /// is claimed `FOR UPDATE SKIP LOCKED` in its OWN short transaction with
-    /// the lock held through processing — concurrent runners take disjoint
-    /// accounts — and commits independently (one provider outage rolls back
-    /// exactly its own account). `invalid_grant` expires the account (the
-    /// user must reconnect); the credential is left to the store's lazy
-    /// expiry. Re-runs converge: a bundle the store already rotated is only
-    /// re-mirrored, never re-exchanged.
+    /// Refresh every due account for ONE credential-store scope (`company_id`
+    /// — the legacy tenancy twin, ADR-0029: the module's own tables are
+    /// unfenced, but the store across the port is still company-scoped, so
+    /// the host enumerates the scopes it serves and names one here). Each
+    /// account is claimed `FOR UPDATE SKIP LOCKED` in its OWN short
+    /// transaction with the lock held through processing — concurrent runners
+    /// take disjoint accounts — and commits independently (one provider
+    /// outage rolls back exactly its own account). The transaction binds the
+    /// composing service's ambient org scope when one is resolved, so a
+    /// decorated deployment's fence applies to the claim and the mirror
+    /// updates. `invalid_grant` expires the account (the user must
+    /// reconnect); the credential is left to the store's lazy expiry. Re-runs
+    /// converge: a bundle the store already rotated is only re-mirrored,
+    /// never re-exchanged.
     pub async fn refresh_due(&self, company_id: Uuid) -> Result<RefreshSummary, OauthError> {
         let mut summary = RefreshSummary::default();
         for _ in 0..self.refresh_batch_size {
             let mut tx = self.pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
+            bind_ambient_org_scope(&mut tx).await?;
             let claimed = sqlx::query_as::<_, (Uuid, String, String, Option<DateTime<Utc>>)>(
                 "SELECT id, provider::text, account_ref, expires_at
                    FROM integrations.integration_accounts
-                  WHERE company_id = $1 AND status = 'active'
+                  WHERE status = 'active'
                     AND expires_at IS NOT NULL
-                    AND expires_at < now() + make_interval(secs => $2)
+                    AND expires_at < now() + make_interval(secs => $1)
                   ORDER BY expires_at ASC
                   LIMIT 1
                   FOR UPDATE SKIP LOCKED",
             )
-            .bind(company_id)
             .bind(self.refresh_window.num_seconds())
             .fetch_optional(&mut *tx)
             .await?;
@@ -834,10 +863,11 @@ impl IntegrationsOauthService {
 
     /// Request-path lazy refresh (refresh-on-use): if THIS account is inside
     /// the refresh window, run the same single-account refresh the sweep
-    /// runs. Returns the account's metadata either way.
+    /// runs. Returns the account's metadata either way. `company_id` is the
+    /// credential-store scope key (the legacy tenancy twin, ADR-0029).
     pub async fn ensure_fresh(&self, company_id: Uuid, account_id: Uuid) -> Result<AccountStatus, OauthError> {
         let account = self
-            .fetch_account(company_id, account_id)
+            .fetch_account(account_id)
             .await?
             .ok_or(OauthError::NotFound)?;
         if account.status != "active" {
@@ -849,16 +879,15 @@ impl IntegrationsOauthService {
             .unwrap_or(false);
         if due {
             let mut tx = self.pool.begin().await?;
-            company_scope::bind_company_on(&mut tx, company_id).await?;
+            bind_ambient_org_scope(&mut tx).await?;
             let claimed = sqlx::query_as::<_, (Uuid, String, String, Option<DateTime<Utc>>)>(
                 "SELECT id, provider::text, account_ref, expires_at
                    FROM integrations.integration_accounts
-                  WHERE id = $1 AND company_id = $2 AND status = 'active'
+                  WHERE id = $1 AND status = 'active'
                   LIMIT 1
                   FOR UPDATE SKIP LOCKED",
             )
             .bind(account_id)
-            .bind(company_id)
             .fetch_optional(&mut *tx)
             .await?;
             if let Some((account_id, provider, account_ref, _)) = claimed {
@@ -869,12 +898,13 @@ impl IntegrationsOauthService {
                 tx.commit().await?;
             }
         }
-        self.status(company_id, account_id).await
+        self.status(account_id).await
     }
 
     /// Refresh one claimed account inside its own transaction (lock held
     /// through processing; every exit path commits the outcome or rolls back
-    /// to leave the account due for the next tick).
+    /// to leave the account due for the next tick). `company_id` is the
+    /// credential-store scope key (the legacy tenancy twin, ADR-0029).
     async fn refresh_claimed(
         &self,
         mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
@@ -898,10 +928,9 @@ impl IntegrationsOauthService {
                 sqlx::query(
                     "UPDATE integrations.integration_accounts
                         SET status = 'expired', pkce_verifier = NULL
-                      WHERE id = $1 AND company_id = $2 AND status = 'active'",
+                      WHERE id = $1 AND status = 'active'",
                 )
                 .bind(account_id)
-                .bind(company_id)
                 .execute(&mut *tx)
                 .await?;
                 tx.commit().await?;
@@ -918,11 +947,10 @@ impl IntegrationsOauthService {
         if prior.expires_at() - self.refresh_window >= Utc::now() {
             sqlx::query(
                 "UPDATE integrations.integration_accounts
-                    SET expires_at = $3
-                  WHERE id = $1 AND company_id = $2",
+                    SET expires_at = $2
+                  WHERE id = $1",
             )
             .bind(account_id)
-            .bind(company_id)
             .bind(prior.expires_at())
             .execute(&mut *tx)
             .await?;
@@ -936,10 +964,9 @@ impl IntegrationsOauthService {
             sqlx::query(
                 "UPDATE integrations.integration_accounts
                     SET status = 'expired', pkce_verifier = NULL
-                  WHERE id = $1 AND company_id = $2 AND status = 'active'",
+                  WHERE id = $1 AND status = 'active'",
             )
             .bind(account_id)
-            .bind(company_id)
             .execute(&mut *tx)
             .await?;
             tx.commit().await?;
@@ -972,10 +999,9 @@ impl IntegrationsOauthService {
                 sqlx::query(
                     "UPDATE integrations.integration_accounts
                         SET status = 'expired', pkce_verifier = NULL
-                      WHERE id = $1 AND company_id = $2 AND status = 'active'",
+                      WHERE id = $1 AND status = 'active'",
                 )
                 .bind(account_id)
-                .bind(company_id)
                 .execute(&mut *tx)
                 .await?;
                 tx.commit().await?;
@@ -1015,11 +1041,10 @@ impl IntegrationsOauthService {
             .map_err(|f| OauthError::Store(f.to_string()))?;
         sqlx::query(
             "UPDATE integrations.integration_accounts
-                SET expires_at = $3, scopes = COALESCE($4, scopes), last_refreshed_at = $5
-              WHERE id = $1 AND company_id = $2",
+                SET expires_at = $2, scopes = COALESCE($3, scopes), last_refreshed_at = $4
+              WHERE id = $1",
         )
         .bind(account_id)
-        .bind(company_id)
         .bind(expires_at)
         .bind(&scope)
         .bind(now)
@@ -1032,19 +1057,39 @@ impl IntegrationsOauthService {
 
     // ── reads ───────────────────────────────────────────────────────────────
 
-    async fn fetch_account(&self, company_id: Uuid, account_id: Uuid) -> Result<Option<AccountRow>, OauthError> {
-        let row = sqlx::query_as::<_, AccountRow>(
-            "SELECT id, company_id, provider::text AS provider, account_ref,
-                    status::text AS status, scopes, expires_at, last_refreshed_at
-               FROM integrations.integration_accounts
-              WHERE id = $1 AND company_id = $2",
+    /// Read one account row — ID-only (ADR-0029): the read rides the
+    /// composing service's request-dedicated connection when one is bound —
+    /// the decorator's org fence hides another tenant's row — else runs
+    /// plainly on the pool.
+    async fn fetch_account(&self, account_id: Uuid) -> Result<Option<AccountRow>, OauthError> {
+        let row = company_scope::fetch_optional_row_scoped(
+            &self.pool,
+            sqlx::query(
+                "SELECT id, provider::text AS provider, account_ref,
+                        status::text AS status, scopes, expires_at, last_refreshed_at
+                   FROM integrations.integration_accounts
+                  WHERE id = $1",
+            )
+            .bind(account_id),
         )
-        .bind(account_id)
-        .bind(company_id);
-        Ok(company_scope::with_company_scope(Some(company_id), row.fetch_optional(&self.pool))
-            .await
-            .map_err(OauthError::Db)?)
+        .await
+        .map_err(OauthError::Db)?;
+        Ok(row
+            .map(|r| sqlx::FromRow::from_row(&r))
+            .transpose()?)
     }
+}
+
+/// Bind the ambient org scope of the current request onto a fresh transaction,
+/// when the composing service resolved one (ADR-0029). The decorator's org
+/// fence (org_unit_id + RLS) then applies inside the transaction; with no
+/// scope bound the transaction runs unscoped and a decorated deployment
+/// refuses its writes (fail closed).
+async fn bind_ambient_org_scope(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>) -> Result<(), OauthError> {
+    if let Some(scope) = org_scope::current_org_scope() {
+        org_scope::bind_org_scope_on(&mut **tx, &scope).await?;
+    }
+    Ok(())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

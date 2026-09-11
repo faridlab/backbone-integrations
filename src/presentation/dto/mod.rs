@@ -6,6 +6,7 @@
 //! with validation and OpenAPI schema support.
 
 pub mod integration_connector_dto;
+pub mod integration_account_dto;
 pub mod integration_event_dto;
 
 // Re-exports
@@ -16,6 +17,14 @@ pub use integration_connector_dto::{
     IntegrationConnectorResponseDto,
     IntegrationConnectorListResponseDto,
     IntegrationConnectorSummaryDto,
+};
+pub use integration_account_dto::{
+    CreateIntegrationAccountDto,
+    UpdateIntegrationAccountDto,
+    PatchIntegrationAccountDto,
+    IntegrationAccountResponseDto,
+    IntegrationAccountListResponseDto,
+    IntegrationAccountSummaryDto,
 };
 pub use integration_event_dto::{
     CreateIntegrationEventDto,

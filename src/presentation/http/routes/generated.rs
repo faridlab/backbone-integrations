@@ -15,12 +15,14 @@ use super::{
 
 use crate::application::service::{
     IntegrationConnectorService,
+    IntegrationAccountService,
     IntegrationEventService,
 };
 
 /// Services collection for all CRUD endpoints
 pub struct HttpServices {
     pub integration_connector: Arc<IntegrationConnectorService>,
+    pub integration_account: Arc<IntegrationAccountService>,
     pub integration_event: Arc<IntegrationEventService>,
 }
 

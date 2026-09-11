@@ -755,7 +755,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - provider
         - kind
         - direction
@@ -763,9 +762,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         provider:
@@ -795,16 +791,12 @@ components:
     CreateIntegrationConnectorRequest:
       type: object
       required:
-        - company_id
         - provider
         - kind
         - direction
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         provider:
           type: string
         kind:
@@ -819,16 +811,12 @@ components:
     UpdateIntegrationConnectorRequest:
       type: object
       required:
-        - company_id
         - provider
         - kind
         - direction
         - status
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         provider:
           type: string
         kind:
@@ -843,9 +831,6 @@ components:
     PatchIntegrationConnectorRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         provider:
           type: string
         kind:
@@ -871,7 +856,6 @@ components:
       type: object
       required:
         - id
-        - company_id
         - connector_id
         - event_type
         - external_id
@@ -881,9 +865,6 @@ components:
         - metadata
       properties:
         id:
-          type: string
-          format: uuid
-        company_id:
           type: string
           format: uuid
         connector_id:
@@ -928,7 +909,6 @@ components:
     CreateIntegrationEventRequest:
       type: object
       required:
-        - company_id
         - connector_id
         - event_type
         - external_id
@@ -937,9 +917,6 @@ components:
         - payload
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         connector_id:
           type: string
           format: uuid
@@ -969,7 +946,6 @@ components:
     UpdateIntegrationEventRequest:
       type: object
       required:
-        - company_id
         - connector_id
         - event_type
         - external_id
@@ -978,9 +954,6 @@ components:
         - payload
         - metadata
       properties:
-        company_id:
-          type: string
-          format: uuid
         connector_id:
           type: string
           format: uuid
@@ -1010,9 +983,6 @@ components:
     PatchIntegrationEventRequest:
       type: object
       properties:
-        company_id:
-          type: string
-          format: uuid
         connector_id:
           type: string
           format: uuid

@@ -186,7 +186,7 @@ async fn malicious_override_yields_zero_outbound_calls_in_the_refresh_path() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    let account_id = seed_account(&pool, company, "gmail", "due@example.com", "active", Some(300))
+    let account_id = seed_account(&pool, "gmail", "due@example.com", "active", Some(300))
         .await;
 
     let mut map = std::collections::BTreeMap::new();
@@ -203,6 +203,7 @@ async fn malicious_override_yields_zero_outbound_calls_in_the_refresh_path() {
 
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &evil,
         &clients_for(&[PROVIDER_GMAIL]),
@@ -252,7 +253,7 @@ async fn due_account_rotates_with_new_honest_expiry() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    let account_id = seed_account(&pool, company, "gmail", "due@example.com", "active", Some(300))
+    let account_id = seed_account(&pool, "gmail", "due@example.com", "active", Some(300))
         .await;
 
     let store = common::FakeStore::new();
@@ -277,6 +278,7 @@ async fn due_account_rotates_with_new_honest_expiry() {
     let before = Utc::now();
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &EndpointOverrides::default(),
         &clients_for(&[PROVIDER_GMAIL]),
@@ -330,13 +332,14 @@ async fn not_due_account_untouched() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    let account_id = seed_account(&pool, company, "gmail", "fine@example.com", "active", Some(7200))
+    let account_id = seed_account(&pool, "gmail", "fine@example.com", "active", Some(7200))
         .await;
 
     let store = common::FakeStore::new();
     let transport = FakeTransport::new();
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &EndpointOverrides::default(),
         &clients_for(&[PROVIDER_GMAIL]),
@@ -367,7 +370,7 @@ async fn invalid_grant_expires_the_account_without_store_writes() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    let account_id = seed_account(&pool, company, "gmail", "dead@example.com", "active", Some(300))
+    let account_id = seed_account(&pool, "gmail", "dead@example.com", "active", Some(300))
         .await;
 
     let store = common::FakeStore::new();
@@ -396,6 +399,7 @@ async fn invalid_grant_expires_the_account_without_store_writes() {
 
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &EndpointOverrides::default(),
         &clients_for(&[PROVIDER_GMAIL]),
@@ -427,12 +431,13 @@ async fn unreadable_credential_expires_the_account() {
     let pool = probe_db().await;
     let company = Uuid::new_v4();
     let account_id =
-        seed_account(&pool, company, "outlook", "drift@example.com", "active", Some(300)).await;
+        seed_account(&pool, "outlook", "drift@example.com", "active", Some(300)).await;
 
     let store = common::FakeStore::new(); // never issued → read refuses NotFound
     let transport = FakeTransport::new();
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &EndpointOverrides::default(),
         &clients_for(&["outlook"]),
@@ -461,7 +466,7 @@ async fn response_without_expiry_is_unstoreable() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    let account_id = seed_account(&pool, company, "gmail", "lying@example.com", "active", Some(300))
+    let account_id = seed_account(&pool, "gmail", "lying@example.com", "active", Some(300))
         .await;
 
     let store = common::FakeStore::new();
@@ -494,6 +499,7 @@ async fn response_without_expiry_is_unstoreable() {
 
     let report = refresh_oauth_credentials(
         &pool,
+        company,
         &ProviderRegistry::with_builtin(),
         &EndpointOverrides::default(),
         &clients_for(&[PROVIDER_GMAIL]),
@@ -529,7 +535,6 @@ async fn concurrent_runs_claim_disjoint_accounts_without_double_rotation() {
     for i in 0..4 {
         ids.push(seed_account(
             &pool,
-            company,
             "gmail",
             &format!("racer{i}@example.com"),
             "active",
@@ -563,6 +568,7 @@ async fn concurrent_runs_claim_disjoint_accounts_without_double_rotation() {
     let run = |pool: PgPool, transport: FakeTransport, store: common::FakeStore| async move {
         refresh_oauth_credentials(
             &pool,
+            company,
             &ProviderRegistry::with_builtin(),
             &EndpointOverrides::default(),
             &clients_for(&[PROVIDER_GMAIL]),
@@ -600,8 +606,7 @@ async fn concurrent_runs_claim_disjoint_accounts_without_double_rotation() {
 async fn skip_locked_hides_locked_rows_from_concurrent_claims() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
-    let company = Uuid::new_v4();
-    let id = seed_account(&pool, company, "gmail", "locked@example.com", "active", Some(300)).await;
+    let id = seed_account(&pool, "gmail", "locked@example.com", "active", Some(300)).await;
 
     let mut tx_a = pool.begin().await.expect("tx a");
     let claim_a: Option<Uuid> = sqlx::query_scalar(
@@ -644,14 +649,15 @@ async fn skip_locked_hides_locked_rows_from_concurrent_claims() {
     tx_b.rollback().await.expect("release");
 }
 
-/// The per-company fan-out wraps the same sweep with the company scope bound
-/// (the FORCE-RLS host surface).
+/// The per-scope fan-out runs the same sweep once per host-named
+/// credential-store scope (the store across the port is company-scoped; the
+/// module's own tables are unfenced).
 #[tokio::test]
 async fn per_company_fan_out_refreshes_scoped_accounts() {
     let _guard = db_guard().await;
     let pool = probe_db().await;
     let company = Uuid::new_v4();
-    seed_account(&pool, company, "gmail", "scoped@example.com", "active", Some(300)).await;
+    seed_account(&pool, "gmail", "scoped@example.com", "active", Some(300)).await;
 
     let store = common::FakeStore::new();
     store
@@ -726,6 +732,10 @@ async fn probe_db() -> PgPool {
         .execute(&pool)
         .await
         .expect("apply the RLS migration verbatim");
+    sqlx::raw_sql(include_str!("../migrations/20260911120000_strip_tenancy.up.sql"))
+        .execute(&pool)
+        .await
+        .expect("apply the tenancy strip verbatim");
     pool
 }
 
@@ -733,7 +743,6 @@ async fn probe_db() -> PgPool {
 /// leaves the mirror empty — the pending shape).
 async fn seed_account(
     pool: &PgPool,
-    company_id: Uuid,
     provider: &str,
     account_ref: &str,
     status: &str,
@@ -743,11 +752,10 @@ async fn seed_account(
     let expires_at = expires_in_seconds.map(|s| Utc::now() + ChronoDuration::seconds(s));
     sqlx::query(
         r#"INSERT INTO integrations.integration_accounts
-               (id, company_id, provider, account_ref, status, expires_at)
-           VALUES ($1, $2, $3::o_auth_provider, $4, $5::integration_account_status, $6)"#,
+               (id, provider, account_ref, status, expires_at)
+           VALUES ($1, $2::o_auth_provider, $3, $4::integration_account_status, $5)"#,
     )
     .bind(id)
-    .bind(company_id)
     .bind(provider)
     .bind(account_ref)
     .bind(status)

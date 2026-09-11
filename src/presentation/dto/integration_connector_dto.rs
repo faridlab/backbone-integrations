@@ -35,9 +35,6 @@ use crate::domain::entity::ConnectorStatus;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateIntegrationConnectorDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub provider: String,
     pub kind: ConnectorKind,
@@ -58,9 +55,6 @@ pub struct CreateIntegrationConnectorDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateIntegrationConnectorDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub provider: String,
     pub kind: ConnectorKind,
@@ -81,9 +75,6 @@ pub struct UpdateIntegrationConnectorDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchIntegrationConnectorDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
@@ -98,7 +89,7 @@ pub struct PatchIntegrationConnectorDto {
 impl PatchIntegrationConnectorDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.status.is_some()
+        self.provider.is_some() || self.kind.is_some() || self.direction.is_some() || self.status.is_some()
     }
 }
 
@@ -116,8 +107,6 @@ impl PatchIntegrationConnectorDto {
 pub struct IntegrationConnectorResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub provider: String,
     pub kind: ConnectorKind,
@@ -180,9 +169,9 @@ impl IntegrationConnectorListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct IntegrationConnectorSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub provider: String,
     pub kind: ConnectorKind,
+    pub direction: ConnectorDirection,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -194,7 +183,6 @@ impl From<IntegrationConnector> for IntegrationConnectorResponseDto {
     fn from(entity: IntegrationConnector) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             provider: entity.provider,
             kind: entity.kind,
             direction: entity.direction,
@@ -209,9 +197,9 @@ impl From<IntegrationConnector> for IntegrationConnectorSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             provider: entity.provider,
             kind: entity.kind,
+            direction: entity.direction,
             created_at,
         }
     }
@@ -221,7 +209,6 @@ impl From<CreateIntegrationConnectorDto> for IntegrationConnector {
     fn from(dto: CreateIntegrationConnectorDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             provider: dto.provider,
             kind: dto.kind,
             direction: dto.direction,
@@ -235,7 +222,6 @@ impl From<&IntegrationConnector> for IntegrationConnectorResponseDto {
     fn from(entity: &IntegrationConnector) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             provider: entity.provider.clone(),
             kind: entity.kind.clone(),
             direction: entity.direction.clone(),
@@ -253,7 +239,6 @@ impl backbone_core::FromCreateDto<CreateIntegrationConnectorDto> for Integration
 
 impl backbone_core::ApplyUpdateDto<UpdateIntegrationConnectorDto> for IntegrationConnector {
     fn apply_update(mut self, dto: UpdateIntegrationConnectorDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.provider = dto.provider;
         self.kind = dto.kind;
         self.direction = dto.direction;

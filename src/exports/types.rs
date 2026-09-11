@@ -48,7 +48,6 @@ impl From<IntegrationConnectorId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegrationConnectorDto {
     pub id: IntegrationConnectorId,
-    pub company_id: Uuid,
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
@@ -67,6 +66,67 @@ pub struct IntegrationConnectorSummary {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegrationConnectorRef {
     pub id: IntegrationConnectorId,
+}
+
+// ============================================================================
+// INTEGRATIONACCOUNT TYPES
+// ============================================================================
+
+/// Type-safe ID for IntegrationAccount
+///
+/// Use this instead of raw Uuid for type safety across modules.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct IntegrationAccountId(pub Uuid);
+
+impl IntegrationAccountId {
+    pub fn new(id: Uuid) -> Self {
+        Self(id)
+    }
+
+    pub fn into_inner(self) -> Uuid {
+        self.0
+    }
+}
+
+impl From<Uuid> for IntegrationAccountId {
+    fn from(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl From<IntegrationAccountId> for Uuid {
+    fn from(id: IntegrationAccountId) -> Self {
+        id.0
+    }
+}
+
+/// Data transfer object for IntegrationAccount
+///
+/// This is the public representation of IntegrationAccount for other modules.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountDto {
+    pub id: IntegrationAccountId,
+    pub provider: OAuthProvider,
+    pub account_ref: String,
+    pub status: IntegrationAccountStatus,
+    pub scopes: String,
+    pub pkce_verifier: Option<String>,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub last_refreshed_at: Option<DateTime<Utc>>,
+    pub metadata: serde_json::Value,
+}
+
+/// Summary view of IntegrationAccount for list displays
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountSummary {
+    pub id: IntegrationAccountId,
+    pub status: IntegrationAccountStatus,
+}
+
+/// Reference to IntegrationAccount for foreign key relationships
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountRef {
+    pub id: IntegrationAccountId,
 }
 
 // ============================================================================
@@ -107,7 +167,6 @@ impl From<IntegrationEventId> for Uuid {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IntegrationEventDto {
     pub id: IntegrationEventId,
-    pub company_id: Uuid,
     pub connector_id: Uuid,
     pub event_type: String,
     pub external_id: String,

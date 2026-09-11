@@ -30,6 +30,9 @@ pub use events::*;
 /// - `IntegrationConnectorDto` - Data transfer object for IntegrationConnector
 /// - `IntegrationConnectorSummary` - Summary view of IntegrationConnector
 /// - `IntegrationConnectorId` - Type-safe ID wrapper
+/// - `IntegrationAccountDto` - Data transfer object for IntegrationAccount
+/// - `IntegrationAccountSummary` - Summary view of IntegrationAccount
+/// - `IntegrationAccountId` - Type-safe ID wrapper
 /// - `IntegrationEventDto` - Data transfer object for IntegrationEvent
 /// - `IntegrationEventSummary` - Summary view of IntegrationEvent
 /// - `IntegrationEventId` - Type-safe ID wrapper
@@ -38,6 +41,9 @@ pub use events::*;
 /// - `IntegrationConnectorCreatedEvent` - Published when IntegrationConnector is created
 /// - `IntegrationConnectorUpdatedEvent` - Published when IntegrationConnector is updated
 /// - `IntegrationConnectorDeletedEvent` - Published when IntegrationConnector is deleted
+/// - `IntegrationAccountCreatedEvent` - Published when IntegrationAccount is created
+/// - `IntegrationAccountUpdatedEvent` - Published when IntegrationAccount is updated
+/// - `IntegrationAccountDeletedEvent` - Published when IntegrationAccount is deleted
 /// - `IntegrationEventCreatedEvent` - Published when IntegrationEvent is created
 /// - `IntegrationEventUpdatedEvent` - Published when IntegrationEvent is updated
 /// - `IntegrationEventDeletedEvent` - Published when IntegrationEvent is deleted

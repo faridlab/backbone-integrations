@@ -7,7 +7,6 @@
 
 use async_trait::async_trait;
 use anyhow::Result;
-use uuid::Uuid;
 
 use crate::domain::entity::{IntegrationAccount, IntegrationAccountStatus, OAuthProvider};
 
@@ -44,7 +43,6 @@ pub struct IntegrationAccountPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct IntegrationAccountFilter {
-    pub company_id: Option<Uuid>,
     pub provider: Option<OAuthProvider>,
     pub account_ref: Option<String>,
     pub status: Option<IntegrationAccountStatus>,
@@ -55,7 +53,7 @@ pub struct IntegrationAccountFilter {
 impl IntegrationAccountFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.provider.is_some() || self.account_ref.is_some() || self.status.is_some() || self.scopes.is_some() || self.pkce_verifier.is_some()
+        self.provider.is_some() || self.account_ref.is_some() || self.status.is_some() || self.scopes.is_some() || self.pkce_verifier.is_some()
     }
 }
 

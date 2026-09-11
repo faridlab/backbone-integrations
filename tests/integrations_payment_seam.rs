@@ -20,7 +20,7 @@ async fn iseam1_settled_notification_becomes_real_payment() {
     let sink = CapturingSink::new();
 
     let conn = svc.register_connector(NewConnector {
-        company_id: company, provider: format!("midtrans-{}", Uuid::new_v4()),
+        provider: format!("midtrans-{}", Uuid::new_v4()),
         kind: "payment_gateway".into(), direction: "inbound".into(),
     }).await.unwrap();
 

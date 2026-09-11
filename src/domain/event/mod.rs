@@ -4,11 +4,15 @@
 
 pub mod integration_connector_events;
 pub mod integration_connector_event_handlers;
+pub mod integration_account_events;
+pub mod integration_account_event_handlers;
 pub mod integration_event_events;
 pub mod integration_event_event_handlers;
 
 pub use integration_connector_events::{IntegrationConnectorEvent, IntegrationConnectorEventPublisher, NoopIntegrationConnectorEventPublisher};
 pub use integration_connector_event_handlers::IntegrationConnectorEventHandler;
+pub use integration_account_events::{IntegrationAccountEvent, IntegrationAccountEventPublisher, NoopIntegrationAccountEventPublisher};
+pub use integration_account_event_handlers::IntegrationAccountEventHandler;
 pub use integration_event_events::{IntegrationEventEvent, IntegrationEventEventPublisher, NoopIntegrationEventEventPublisher};
 pub use integration_event_event_handlers::IntegrationEventEventHandler;
 

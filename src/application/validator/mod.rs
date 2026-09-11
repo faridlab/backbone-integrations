@@ -6,9 +6,11 @@ pub mod shared_types;
 pub use shared_types::{ValidationError, ValidationErrors, ValidationResult, EntityValidator};
 
 pub mod integration_connector_validator;
+pub mod integration_account_validator;
 pub mod integration_event_validator;
 
 pub use integration_connector_validator::{IntegrationConnectorValidator, integration_connector_validator};
+pub use integration_account_validator::{IntegrationAccountValidator, integration_account_validator};
 pub use integration_event_validator::{IntegrationEventValidator, integration_event_validator};
 
 // <<< CUSTOM

@@ -38,6 +38,33 @@ pub struct IntegrationConnectorDeletedEvent {
 }
 
 // ============================================================================
+// INTEGRATIONACCOUNT EVENTS
+// ============================================================================
+
+/// Event published when a IntegrationAccount is created
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountCreatedEvent {
+    pub id: IntegrationAccountId,
+    pub data: IntegrationAccountDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a IntegrationAccount is updated
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountUpdatedEvent {
+    pub id: IntegrationAccountId,
+    pub data: IntegrationAccountDto,
+    pub occurred_at: DateTime<Utc>,
+}
+
+/// Event published when a IntegrationAccount is deleted
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationAccountDeletedEvent {
+    pub id: IntegrationAccountId,
+    pub occurred_at: DateTime<Utc>,
+}
+
+// ============================================================================
 // INTEGRATIONEVENT EVENTS
 // ============================================================================
 
@@ -75,6 +102,9 @@ pub enum IntegrationsEvent {
     IntegrationConnectorCreated(IntegrationConnectorCreatedEvent),
     IntegrationConnectorUpdated(IntegrationConnectorUpdatedEvent),
     IntegrationConnectorDeleted(IntegrationConnectorDeletedEvent),
+    IntegrationAccountCreated(IntegrationAccountCreatedEvent),
+    IntegrationAccountUpdated(IntegrationAccountUpdatedEvent),
+    IntegrationAccountDeleted(IntegrationAccountDeletedEvent),
     IntegrationEventCreated(IntegrationEventCreatedEvent),
     IntegrationEventUpdated(IntegrationEventUpdatedEvent),
     IntegrationEventDeleted(IntegrationEventDeletedEvent),

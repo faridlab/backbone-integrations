@@ -50,7 +50,6 @@ impl std::ops::Deref for IntegrationEventId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct IntegrationEvent {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub connector_id: Uuid,
     pub event_type: String,
     pub external_id: String,
@@ -72,10 +71,9 @@ impl IntegrationEvent {
     }
 
     /// Create a new IntegrationEvent with required fields
-    pub fn new(company_id: Uuid, connector_id: Uuid, event_type: String, external_id: String, business_key: String, status: IntegrationStatus, payload: String) -> Self {
+    pub fn new(connector_id: Uuid, event_type: String, external_id: String, business_key: String, status: IntegrationStatus, payload: String) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id,
             connector_id,
             event_type,
             external_id,
@@ -175,9 +173,6 @@ impl IntegrationEvent {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "connector_id" => {
                     if let Ok(v) = serde_json::from_value(value) { self.connector_id = v; }
                 }
@@ -259,7 +254,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationEvent {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("connector_id".to_string(), "uuid".to_string());
         m.insert("mapped_ref_id".to_string(), "uuid".to_string());
         m.insert("status".to_string(), "integration_status".to_string());
@@ -267,9 +261,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationEvent {
     }
     fn search_fields() -> &'static [&'static str] {
         &["event_type", "external_id", "business_key", "payload"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -279,7 +270,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationEvent {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct IntegrationEventBuilder {
-    company_id: Option<Uuid>,
     connector_id: Option<Uuid>,
     event_type: Option<String>,
     external_id: Option<String>,
@@ -292,12 +282,6 @@ pub struct IntegrationEventBuilder {
 }
 
 impl IntegrationEventBuilder {
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
-        self
-    }
-
     /// Set the connector_id field (required)
     pub fn connector_id(mut self, value: Uuid) -> Self {
         self.connector_id = Some(value);
@@ -356,7 +340,6 @@ impl IntegrationEventBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<IntegrationEvent, String> {
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let connector_id = self.connector_id.ok_or_else(|| "connector_id is required".to_string())?;
         let event_type = self.event_type.ok_or_else(|| "event_type is required".to_string())?;
         let external_id = self.external_id.ok_or_else(|| "external_id is required".to_string())?;
@@ -365,7 +348,6 @@ impl IntegrationEventBuilder {
 
         Ok(IntegrationEvent {
             id: Uuid::new_v4(),
-            company_id,
             connector_id,
             event_type,
             external_id,

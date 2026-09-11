@@ -55,16 +55,16 @@
 //!    tick re-claims the account and rotates again (lineage tolerates it);
 //!    expiry TRUTH lives in the store, the mirror only drives scheduling.
 //!
-//! **Per-company handler**: under FORCE RLS a job cannot enumerate companies,
-//! so the host enumerates its companies and calls
-//! [`refresh_oauth_credentials_for_companies`] (ADR-0008). The company is
-//! applied inside the sweep's claim step — an explicit predicate on the claim
-//! SQL plus a transaction-local `app.company_id` bind on the claim connection
-//! — so the RLS fence stays meaningful for the claim, the mirror, and the
-//! expire writes alike. [`refresh_oauth_credentials`] is the unscoped variant
-//! for compositions that do not enable RLS on
-//! `integrations.integration_accounts`; under FORCE RLS no company is bound
-//! and it sees zero rows (fail-closed, inert).
+//! **Per-scope handler**: the module's own tables carry no company column
+//! (ADR-0029) — the composing service's tenancy decorator owns org scoping —
+//! but the credential STORE across the port is still company-scoped, so the
+//! sweep's `company_id` parameter is the store's scope key: the HOST names it
+//! (the job cannot learn it from a row), one sweep per scope via
+//! [`refresh_oauth_credentials_for_companies`]. Each sweep transaction binds
+//! the composing service's ambient org scope when one is resolved, so a
+//! decorated deployment's org fence still applies to the claim, the mirror,
+//! and the expire writes; with no scope bound they run unscoped and a
+//! decorated deployment refuses them (fail closed).
 
 use std::collections::HashSet;
 
@@ -73,7 +73,7 @@ use sqlx::{PgPool, Row};
 use tracing::{debug, warn};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 
 use crate::application::service::integrations_oauth_ports::{
     OAuthCredentialFailure, OAuthCredentialStore, TokenBundle, PURPOSE_OAUTH_TOKEN,
@@ -119,7 +119,6 @@ pub struct RefreshReport {
 /// One due account, as claimed.
 struct DueAccount {
     id: Uuid,
-    company_id: Uuid,
     provider: String,
     account_ref: String,
 }
@@ -144,10 +143,15 @@ fn refresh_form(
     }
 }
 
-/// Run the refresh sweep (unscoped variant — for compositions without RLS on
-/// `integrations.integration_accounts`; under FORCE RLS this sees zero rows).
+/// Run the refresh sweep for ONE credential-store scope. `company_id` is the
+/// legacy tenancy twin (ADR-0029): the module's own tables are unfenced, so
+/// it is NOT a claim predicate — it keys the store across the port on every
+/// read/rotate below. The composing service's ambient org scope, when
+/// resolved, is bound on each claim transaction so a decorated deployment's
+/// org fence applies.
 pub async fn refresh_oauth_credentials(
     pool: &PgPool,
+    company_id: Uuid,
     registry: &ProviderRegistry,
     overrides: &EndpointOverrides,
     clients: &OAuthClientConfigs,
@@ -156,13 +160,6 @@ pub async fn refresh_oauth_credentials(
     schedule: &RefreshSchedule,
 ) -> Result<RefreshReport, sqlx::Error> {
     let mut report = RefreshReport::default();
-    // The sweep's company scope, if the caller set one (the per-company
-    // fan-out does). It is applied to the claim TWO ways, because ambient
-    // task-locals never reach a raw sqlx statement: an explicit predicate on
-    // the claim SQL (correct even where the table carries no RLS policy)
-    // and a transaction-local `app.company_id` bind (makes the RLS fence
-    // meaningful where it exists).
-    let scope = company_scope::current_company();
     // Accounts this run already attempted (refreshed, expired, or skipped).
     // A skipped account is rolled back and stays due — excluding it here
     // means one run attempts each account at most once instead of spinning
@@ -170,24 +167,22 @@ pub async fn refresh_oauth_credentials(
     let mut attempted: Vec<Uuid> = Vec::new();
     for _ in 0..schedule.refresh_batch_size.max(0) {
         let mut tx = pool.begin().await?;
-        if let Some(company_id) = scope {
-            company_scope::bind_company_on(&mut tx, company_id).await?;
+        if let Some(scope) = org_scope::current_org_scope() {
+            org_scope::bind_org_scope_on(&mut tx, &scope).await?;
         }
         let claimed = sqlx::query(
-            r#"SELECT id, company_id, provider::text AS provider, account_ref
+            r#"SELECT id, provider::text AS provider, account_ref
                  FROM integrations.integration_accounts
                 WHERE status = 'active'
                   AND expires_at IS NOT NULL
                   AND expires_at < now() + make_interval(secs => $1)
                   AND id <> ALL($2::uuid[])
-                  AND ($3::uuid IS NULL OR company_id = $3::uuid)
                 ORDER BY expires_at
                 LIMIT 1
                 FOR UPDATE SKIP LOCKED"#,
         )
         .bind(schedule.refresh_window_seconds)
         .bind(&attempted)
-        .bind(scope)
         .fetch_optional(&mut *tx)
         .await?;
         let row = match claimed {
@@ -201,20 +196,22 @@ pub async fn refresh_oauth_credentials(
         };
         let account = DueAccount {
             id: row.get("id"),
-            company_id: row.get("company_id"),
             provider: row.get("provider"),
             account_ref: row.get("account_ref"),
         };
         attempted.push(account.id);
-        refresh_one(tx, registry, overrides, clients, store, transport, &account, &mut report)
-            .await?;
+        refresh_one(
+            tx, company_id, registry, overrides, clients, store, transport, &account, &mut report,
+        )
+        .await?;
     }
     Ok(report)
 }
 
-/// The host-driven fan-out: run the sweep once per named company. Companies
-/// are named by the HOST (the job cannot self-enumerate under FORCE RLS); a
-/// failure for one company is reported, not fatal to the rest.
+/// The host-driven fan-out: run the sweep once per named credential-store
+/// scope. The scopes are named by the HOST (the store across the port is
+/// still company-scoped, and a job cannot self-enumerate under its fence); a
+/// failure for one scope is reported, not fatal to the rest.
 pub async fn refresh_oauth_credentials_for_companies(
     pool: &PgPool,
     registry: &ProviderRegistry,
@@ -227,9 +224,8 @@ pub async fn refresh_oauth_credentials_for_companies(
 ) -> Vec<(Uuid, Result<RefreshReport, sqlx::Error>)> {
     let mut out = Vec::with_capacity(companies.len());
     for company_id in companies {
-        let r = company_scope::with_company_scope(
-            Some(*company_id),
-            refresh_oauth_credentials(pool, registry, overrides, clients, store, transport, schedule),
+        let r = refresh_oauth_credentials(
+            pool, *company_id, registry, overrides, clients, store, transport, schedule,
         )
         .await;
         out.push((*company_id, r));
@@ -241,9 +237,11 @@ pub async fn refresh_oauth_credentials_for_companies(
 /// held for the whole call; every exit path either commits the account's
 /// outcome (refreshed / expired) or rolls back (skipped — the account stays
 /// due and the next tick retries). This is the `commit_per_batch` grain: one
-/// account, one commit.
+/// account, one commit. `company_id` is the credential-store scope key (the
+/// legacy tenancy twin, ADR-0029).
 async fn refresh_one(
     mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
+    company_id: Uuid,
     registry: &ProviderRegistry,
     overrides: &EndpointOverrides,
     clients: &OAuthClientConfigs,
@@ -292,7 +290,7 @@ async fn refresh_one(
     // account drift (or an honestly-expired credential): move the account to
     // `expired` and leave the store to its lazy expiry.
     let bundle: TokenBundle = match store
-        .read_token(account.company_id, &account.provider, &account.account_ref)
+        .read_token(company_id, &account.provider, &account.account_ref)
         .await
     {
         Ok(bundle) => bundle,
@@ -401,7 +399,7 @@ async fn refresh_one(
     // Rotate through the store (lineage preserved), then mirror.
     match store
         .rotate(
-            account.company_id,
+            company_id,
             &account.provider,
             &account.account_ref,
             successor,

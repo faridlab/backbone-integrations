@@ -9,9 +9,9 @@ use backbone_integrations::application::service::integrations_write_service::*;
 use serde_json::json;
 use uuid::Uuid;
 
-async fn connector(svc: &IntegrationsWriteService, company: Uuid) -> Uuid {
+async fn connector(svc: &IntegrationsWriteService) -> Uuid {
     svc.register_connector(NewConnector {
-        company_id: company, provider: format!("midtrans-{}", Uuid::new_v4()),
+        provider: format!("midtrans-{}", Uuid::new_v4()),
         kind: "payment_gateway".into(), direction: "inbound".into(),
     }).await.unwrap()
 }
@@ -29,7 +29,7 @@ async fn igc1_settled_maps() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company).await;
+    let conn = connector(&svc).await;
     let target = FakeTarget::new();
     let sink = CapturingSink::new();
 
@@ -46,7 +46,7 @@ async fn igc2_retry_idempotent() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company).await;
+    let conn = connector(&svc).await;
     let target = FakeTarget::new();
     let sink = CapturingSink::new();
 
@@ -65,7 +65,7 @@ async fn igc3_pending_ignored() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company).await;
+    let conn = connector(&svc).await;
     let sink = CapturingSink::new();
 
     let out = svc.receive_event(event(company, conn, "n-3", "payment_pending"), &FakeTarget::new(), &sink).await.unwrap();
@@ -85,7 +85,7 @@ async fn igc4_unmappable_fails() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company).await;
+    let conn = connector(&svc).await;
     let sink = CapturingSink::new();
 
     let out = svc.receive_event(event(company, conn, "n-4", "payment_settled"),
@@ -106,7 +106,7 @@ async fn igc5_failures_report_and_retry() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company).await;
+    let conn = connector(&svc).await;
     let sink = CapturingSink::new();
 
     // The payment module is "down" — the settled notification fails to map.
@@ -121,7 +121,8 @@ async fn igc5_failures_report_and_retry() {
     assert_eq!(fails[0].error_detail.as_deref(), Some("payment module unavailable"));
 
     // The cause is fixed; retry_failed re-drives it → the event maps, a real internal ref is recorded.
-    let n = svc.retry_failed(conn, &FakeTarget::new(), &sink).await.unwrap();
+    // The company is the documented legacy twin: it keys the TargetPort request and the event payloads.
+    let n = svc.retry_failed(company, conn, &FakeTarget::new(), &sink).await.unwrap();
     assert_eq!(n, 1, "the stuck payment notification is finally booked");
     let (status, mapped): (String, Option<Uuid>) = sqlx::query_as(
         "SELECT status::text, mapped_ref_id FROM integrations.integration_events WHERE id=$1")

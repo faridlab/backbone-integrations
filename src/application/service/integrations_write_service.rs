@@ -4,8 +4,18 @@
 //! providers deliver webhooks at-least-once, so a retry must not re-map (double-apply a payment / create a
 //! duplicate order) — map it to an internal action via a `TargetPort`, or record it as intentionally
 //! ignored. Posts NO GL. Integrations reaches a module only through its public contract (the port).
+//!
+//! Tenancy (ADR-0029): the module is tenant-agnostic — its tables carry no company column and this
+//! service invents no scope. Transactions bind the ambient org scope when the composing service
+//! resolved one; standalone statements ride the request-dedicated connection when one is bound and
+//! run plainly on the pool otherwise, so a decorated deployment's org fence (org_unit_id + RLS +
+//! the decorator's per-unit uniques) enforces isolation and an unscoped write fails closed. The
+//! `company_id` that remains on the boundary shapes here is the documented legacy twin: the
+//! webhook names it, and it routes to the two still-company-shaped edges — the `TargetPort`
+//! (target modules may still be company-fenced) and the outbox/event payloads (the relay keeps a
+//! tenant column).
 
-use backbone_orm::company_scope;
+use backbone_orm::org_scope;
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -32,7 +42,6 @@ pub enum IntegrationError {
 }
 
 pub struct NewConnector {
-    pub company_id: Uuid,
     pub provider: String,
     pub kind: String,      // payment_gateway | marketplace | bank_feed | courier
     pub direction: String, // inbound | outbound | both
@@ -40,6 +49,10 @@ pub struct NewConnector {
 
 /// An inbound provider event (already parsed into `payload`).
 pub struct InboundEvent {
+    /// Legacy tenancy twin (ADR-0029): the module's own tables carry no company column, but the
+    /// event routes to two still-company-shaped edges — the `TargetPort` request to the target
+    /// module and the outbox/event payloads (the cross-tenant relay keys on it). An unknown or
+    /// stale value fails closed at those edges, never inside this module.
     pub company_id: Uuid,
     pub connector_id: Uuid,
     pub event_type: String,
@@ -89,17 +102,15 @@ impl IntegrationsWriteService {
             return Err(IntegrationError::Invalid("connector needs a provider".into()));
         }
         let id = Uuid::new_v4();
-        // RLS scope (ADR-0008): company is on the DTO — scope the insert so it passes the WITH CHECK fence.
-        let r = company_scope::with_company_scope(
-            Some(c.company_id),
-            self.connectors.insert_connector(&self.pool, &NewConnectorRow {
-                id,
-                company_id: c.company_id,
-                provider: &c.provider,
-                kind: &c.kind,
-                direction: &c.direction,
-            }),
-        )
+        // Tenancy (ADR-0029): no scope is invented here — the insert rides the composing service's
+        // request scope when one is bound (the decorator's per-unit provider unique then arbitrates
+        // duplicates), and fails closed on an org-scoped deployment otherwise.
+        let r = self.connectors.insert_connector(&self.pool, &NewConnectorRow {
+            id,
+            provider: &c.provider,
+            kind: &c.kind,
+            direction: &c.direction,
+        })
         .await;
         match r {
             Ok(_) => Ok(id),
@@ -124,16 +135,15 @@ impl IntegrationsWriteService {
         if e.business_key.trim().is_empty() {
             return Err(IntegrationError::Invalid("an inbound event needs a business_key (the order/transaction ref + state)".into()));
         }
-        // RLS scope (ADR-0008): the inbound event carries its company — scope every read/write below to it,
-        // so a webhook is fenced to the tenant that owns the connector even off the request path (a
-        // provider callback has no ambient scope of its own).
+        // Tenancy (ADR-0029): the reads below ride the composing service's request scope when one is
+        // bound — the decorator's org fence then hides another tenant's connector — and run plainly
+        // on the pool otherwise (a decorated deployment yields nothing unscoped, fail closed).
         // The connector must exist and be active.
-        let conn = company_scope::with_company_scope(
-            Some(e.company_id),
-            self.connectors.fetch_gate(&self.pool, e.connector_id),
-        )
-        .await?
-        .ok_or(IntegrationError::NotFound("connector"))?;
+        let conn = self
+            .connectors
+            .fetch_gate(&self.pool, e.connector_id)
+            .await?
+            .ok_or(IntegrationError::NotFound("connector"))?;
         if conn.status != "active" {
             return Err(IntegrationError::InvalidState("connector is not active"));
         }
@@ -141,26 +151,23 @@ impl IntegrationsWriteService {
 
         // Claim the (connector, business_key) dedup slot — a webhook retry OR a second notification for the
         // same business action conflicts here; a new business action does not.
-        let inserted = company_scope::with_company_scope(
-            Some(e.company_id),
-            self.events.claim_event(&self.pool, &NewEventRow {
+        let inserted = self
+            .events
+            .claim_event(&self.pool, &NewEventRow {
                 id: Uuid::new_v4(),
-                company_id: e.company_id,
                 connector_id: e.connector_id,
                 event_type: &e.event_type,
                 external_id: &e.external_id,
                 business_key: &e.business_key,
                 raw: &e.raw,
-            }),
-        )
-        .await?;
+            })
+            .await?;
 
         let Some(event_id) = inserted else {
-            let row = company_scope::with_company_scope(
-                Some(e.company_id),
-                self.events.fetch_by_business_key(&self.pool, e.connector_id, &e.business_key),
-            )
-            .await?;
+            let row = self
+                .events
+                .fetch_by_business_key(&self.pool, e.connector_id, &e.business_key)
+                .await?;
             return Ok(ReceiveOutcome {
                 event_id: row.id, status: row.status,
                 mapped_ref_id: row.mapped_ref_id, duplicate: true,
@@ -182,7 +189,7 @@ impl IntegrationsWriteService {
                     internal_ref_type: mref.internal_ref_type.clone(), internal_ref_id: mref.internal_ref_id,
                 });
                 let mut tx = self.pool.begin().await?;
-                company_scope::bind_company_on(&mut tx, e.company_id).await?;
+                bind_ambient_org_scope(&mut tx).await?;
                 self.events
                     .mark_mapped(&mut tx, event_id, &mref.internal_ref_type, mref.internal_ref_id)
                     .await?;
@@ -196,7 +203,7 @@ impl IntegrationsWriteService {
                     event_id, company_id: e.company_id, connector_id: e.connector_id, external_id: e.external_id.clone(), reason: reason.clone(),
                 };
                 let mut tx = self.pool.begin().await?;
-                company_scope::bind_company_on(&mut tx, e.company_id).await?;
+                bind_ambient_org_scope(&mut tx).await?;
                 self.events.mark_ignored(&mut tx, event_id, &reason).await?;
                 stage(&mut tx, &ev).await?;
                 tx.commit().await?;
@@ -209,7 +216,7 @@ impl IntegrationsWriteService {
                     external_id: e.external_id.clone(), reason: rej.code.clone(),
                 };
                 let mut tx = self.pool.begin().await?;
-                company_scope::bind_company_on(&mut tx, e.company_id).await?;
+                bind_ambient_org_scope(&mut tx).await?;
                 self.events.mark_failed(&mut tx, event_id, &rej.message).await?;
                 stage(&mut tx, &ev).await?;
                 tx.commit().await?;
@@ -223,9 +230,9 @@ impl IntegrationsWriteService {
     /// see WHICH provider events (e.g. settled payments) failed to book, WITHOUT querying the private ledger
     /// (completeness council 2026-07-11).
     pub async fn failures(&self, connector_id: Uuid) -> Result<Vec<FailedEvent>, IntegrationError> {
-        // RLS scope (ADR-0008), ID-only pattern: the connector id alone identifies the report, so the read
-        // rides the request-dedicated connection's `app.company_id` — another tenant's connector returns
-        // nothing. A non-request caller must wrap this in `with_company_scope(Some(company_id))`.
+        // Tenancy (ADR-0029), ID-only pattern: the connector id alone identifies the report, so the read
+        // rides the composing service's request-dedicated connection when one is bound — the decorator's
+        // org fence then hides another tenant's connector — and runs plainly on the pool otherwise.
         let rows = self.events.fetch_failed(&self.pool, connector_id).await?;
         Ok(rows.into_iter().map(|r| FailedEvent {
             event_id: r.id, event_type: r.event_type, external_id: r.external_id,
@@ -238,28 +245,28 @@ impl IntegrationsWriteService {
     /// `TargetPort` under the SAME business-key idempotency the target enforces, so it can't double-apply; a
     /// still-`failed` event that now maps transitions `failed → mapped`. Returns the number newly mapped
     /// (completeness council 2026-07-11).
+    ///
+    /// `company_id` is the legacy tenancy twin (ADR-0029) — the module's tables carry no company column,
+    /// but the re-mapped events still route to the `TargetPort` and the outbox/event payloads, which are
+    /// company-shaped; the CALLER (the composing host, which knows the tenant) names it, and an unknown
+    /// value fails closed at those edges, never inside this module.
     pub async fn retry_failed(
         &self,
+        company_id: Uuid,
         connector_id: Uuid,
         mapper: &dyn TargetPort,
         events: &dyn IntegrationEventSink,
     ) -> Result<usize, IntegrationError> {
-        // RLS scope (ADR-0008), ID-only pattern: identified by the connector id alone, so this first read
-        // rides the request-dedicated connection. Having read the connector's company, every read/write
-        // below carries it explicitly — the retry loop is long-running and may outlive the request scope.
+        // Tenancy (ADR-0029), ID-only pattern: identified by the connector id alone, so this first read
+        // rides the request-dedicated connection when one is bound.
         let conn = self
             .connectors
             .fetch_for_retry(&self.pool, connector_id)
             .await?
             .ok_or(IntegrationError::NotFound("connector"))?;
-        let company_id = conn.company_id;
         let connector_kind = conn.kind;
 
-        let rows = company_scope::with_company_scope(
-            Some(company_id),
-            self.events.fetch_failed(&self.pool, connector_id),
-        )
-        .await?;
+        let rows = self.events.fetch_failed(&self.pool, connector_id).await?;
 
         let mut mapped = 0usize;
         for row in &rows {
@@ -278,7 +285,7 @@ impl IntegrationsWriteService {
                         internal_ref_type: mref.internal_ref_type.clone(), internal_ref_id: mref.internal_ref_id,
                     });
                     let mut tx = self.pool.begin().await?;
-                    company_scope::bind_company_on(&mut tx, company_id).await?;
+                    bind_ambient_org_scope(&mut tx).await?;
                     let m = self
                         .events
                         .retry_mark_mapped(&mut tx, event_id, &mref.internal_ref_type, mref.internal_ref_id)
@@ -293,23 +300,26 @@ impl IntegrationsWriteService {
                     }
                 }
                 Ok(MapOutcome::Ignored(reason)) => {
-                    company_scope::with_company_scope(
-                        Some(company_id),
-                        self.events.retry_mark_ignored(&self.pool, event_id, &reason),
-                    )
-                    .await?;
+                    self.events.retry_mark_ignored(&self.pool, event_id, &reason).await?;
                 }
                 Err(rej) => {
-                    company_scope::with_company_scope(
-                        Some(company_id),
-                        self.events.set_error_detail(&self.pool, event_id, &rej.message),
-                    )
-                    .await?;
+                    self.events.set_error_detail(&self.pool, event_id, &rej.message).await?;
                 }
             }
         }
         Ok(mapped)
     }
+}
+
+/// Bind the ambient org scope of the current request onto a fresh transaction, when the composing
+/// service resolved one (ADR-0029). The decorator's org fence (org_unit_id + RLS + the acting-unit
+/// default) then applies inside the transaction; with no scope bound the transaction runs unscoped
+/// and a decorated deployment refuses its writes (fail closed).
+async fn bind_ambient_org_scope(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>) -> Result<(), IntegrationError> {
+    if let Some(scope) = org_scope::current_org_scope() {
+        org_scope::bind_org_scope_on(&mut **tx, &scope).await?;
+    }
+    Ok(())
 }
 
 async fn stage(tx: &mut sqlx::Transaction<'_, sqlx::Postgres>, event: &IntegrationEvent) -> Result<(), IntegrationError> {

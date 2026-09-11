@@ -51,7 +51,6 @@ impl std::ops::Deref for IntegrationAccountId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct IntegrationAccount {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub provider: OAuthProvider,
     pub account_ref: String,
     pub status: IntegrationAccountStatus,
@@ -71,10 +70,9 @@ impl IntegrationAccount {
     }
 
     /// Create a new IntegrationAccount with required fields
-    pub fn new(company_id: Uuid, provider: OAuthProvider, account_ref: String, status: IntegrationAccountStatus, scopes: String) -> Self {
+    pub fn new(provider: OAuthProvider, account_ref: String, status: IntegrationAccountStatus, scopes: String) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id,
             provider,
             account_ref,
             status,
@@ -172,9 +170,6 @@ impl IntegrationAccount {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "provider" => {
                     if let Ok(v) = serde_json::from_value(value) { self.provider = v; }
                 }
@@ -250,16 +245,12 @@ impl backbone_orm::EntityRepoMeta for IntegrationAccount {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("provider".to_string(), "o_auth_provider".to_string());
         m.insert("status".to_string(), "integration_account_status".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
         &["account_ref", "scopes"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -269,7 +260,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationAccount {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct IntegrationAccountBuilder {
-    company_id: Option<Uuid>,
     provider: Option<OAuthProvider>,
     account_ref: Option<String>,
     status: Option<IntegrationAccountStatus>,
@@ -280,12 +270,6 @@ pub struct IntegrationAccountBuilder {
 }
 
 impl IntegrationAccountBuilder {
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
-        self
-    }
-
     /// Set the provider field (required)
     pub fn provider(mut self, value: OAuthProvider) -> Self {
         self.provider = Some(value);
@@ -332,13 +316,11 @@ impl IntegrationAccountBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<IntegrationAccount, String> {
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let provider = self.provider.ok_or_else(|| "provider is required".to_string())?;
         let account_ref = self.account_ref.ok_or_else(|| "account_ref is required".to_string())?;
 
         Ok(IntegrationAccount {
             id: Uuid::new_v4(),
-            company_id,
             provider,
             account_ref,
             status: self.status.unwrap_or_default(),

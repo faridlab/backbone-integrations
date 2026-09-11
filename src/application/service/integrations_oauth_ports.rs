@@ -194,6 +194,13 @@ impl OAuthCredentialFailure {
 /// `purpose = oauth_token` for every read/rotate/revoke; `issue` takes the
 /// purpose explicitly so the binding is visible at the call site.
 ///
+/// The `company_id` parameter on every verb is the legacy tenancy twin
+/// (ADR-0029): this module's own tables carry no company column — the composing
+/// service's tenancy decorator owns org scoping — but the credential STORE on
+/// the far side is still company-scoped, so the caller (the composing host,
+/// which knows the tenant) names the store's scope key. An unknown or stale
+/// value fails closed at the store (honest not_found), never inside this module.
+///
 /// All writes ride the store's rotate-lineage semantics — the module never
 /// persists secret material itself, and replacement always goes through
 /// [`rotate`](OAuthCredentialStore::rotate) so lineage is preserved.

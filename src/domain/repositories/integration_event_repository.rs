@@ -44,7 +44,6 @@ pub struct IntegrationEventPaginatedResult {
 /// Filter parameters for list queries
 #[derive(Debug, Clone, Default)]
 pub struct IntegrationEventFilter {
-    pub company_id: Option<Uuid>,
     pub connector_id: Option<Uuid>,
     pub event_type: Option<String>,
     pub external_id: Option<String>,
@@ -59,7 +58,7 @@ pub struct IntegrationEventFilter {
 impl IntegrationEventFilter {
     /// Check if any filter is set
     pub fn has_filters(&self) -> bool {
-        self.company_id.is_some() || self.connector_id.is_some() || self.event_type.is_some() || self.external_id.is_some() || self.business_key.is_some() || self.status.is_some() || self.payload.is_some() || self.mapped_ref_type.is_some() || self.mapped_ref_id.is_some() || self.error_detail.is_some()
+        self.connector_id.is_some() || self.event_type.is_some() || self.external_id.is_some() || self.business_key.is_some() || self.status.is_some() || self.payload.is_some() || self.mapped_ref_type.is_some() || self.mapped_ref_id.is_some() || self.error_detail.is_some()
     }
 }
 

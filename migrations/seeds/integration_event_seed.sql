@@ -6,7 +6,6 @@
 
 -- INSERT INTO integrations.integration_events (
 --     id,
---     company_id,
 --     connector_id,
 --     event_type,
 --     external_id,

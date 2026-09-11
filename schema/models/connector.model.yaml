@@ -16,10 +16,6 @@ models:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique connector id"
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Org owner # logical FK to organization.Company.id"
       provider:
         type: string
         attributes: ["@required", "@length(max=60)"]
@@ -42,8 +38,10 @@ models:
         attributes: ["@audit_metadata"]
         description: "Audit metadata"
     indexes:
-      - type: unique
-        fields: [company_id, provider]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # provider unique — one connector per provider per org unit — is installed by
+      # the composing service's tenancy decorator (org_unit_id-leading), not
+      # declared here.
 
 enums:
   - name: ConnectorKind

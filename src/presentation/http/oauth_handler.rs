@@ -15,12 +15,19 @@
 //! - `POST /oauth/:id/disconnect` — revoke credential + terminal account
 //!   status (`delete:integrations`).
 //! - `GET /oauth/:id/status` — metadata-only account view (any authenticated
-//!   principal of the owning company).
+//!   principal).
 //!
 //! Authorization fails closed: every route except the callback sits behind
 //! [`require_principal`] (401 without a validated principal extension — the
 //! composing host's auth layer inserts it) and enforces its own permission
 //! (403 without it). No god flag grants every verb.
+//!
+//! Tenancy (ADR-0029): the module's tables carry no company column — the
+//! composing service's tenancy decorator owns org scoping, so isolation here
+//! is the host's fence plus permission checks, not a company predicate. The
+//! principal's `company_id` is forwarded only on the verbs that reach the
+//! credential STORE (complete / disconnect) — it is the store's scope key,
+//! the documented legacy twin; an unknown value fails closed at the store.
 //!
 //! No response ever carries token material — the account row holds none, and
 //! the store is reachable only through the service's port calls.
@@ -44,6 +51,11 @@ use crate::application::service::integrations_oauth::{
 /// The validated principal the composing host's auth layer inserts into the
 /// request extensions. Present ⇒ authenticated; the permission list carries
 /// the module-scope grants (`write:integrations`, `delete:integrations` …).
+///
+/// `company_id` is the legacy tenancy twin (ADR-0029): the module's own
+/// tables are unfenced, so it never predicates a SQL statement here — it is
+/// forwarded only to the credential STORE (which is still company-scoped) as
+/// the store's scope key on the complete / disconnect paths.
 #[derive(Debug, Clone)]
 pub struct OAuthPrincipal {
     pub company_id: Uuid,
@@ -126,7 +138,10 @@ async fn authorize(
     if !principal.has("write:integrations") {
         return forbidden("write:integrations");
     }
-    match service.authorize(principal.company_id, req).await {
+    // No company parameter: initiation touches no credential store, and the
+    // module's rows are unfenced (ADR-0029) — the composing service's
+    // decorator scopes the write.
+    match service.authorize(req).await {
         Ok(out) => (StatusCode::OK, Json(serde_json::json!({ "success": true, "data": out }))).into_response(),
         Err(e) => e.into_response(),
     }
@@ -221,13 +236,15 @@ async fn disconnect(
     }
 }
 
-/// `GET /oauth/:id/status` — metadata only.
+/// `GET /oauth/:id/status` — metadata only. The principal is extracted (and
+/// already enforced by the auth layer) but not used on this path: the read is
+/// ID-only and the module's rows are unfenced (ADR-0029).
 async fn status(
     State(service): State<Arc<IntegrationsOauthService>>,
-    axum::Extension(principal): axum::Extension<OAuthPrincipal>,
+    axum::Extension(_principal): axum::Extension<OAuthPrincipal>,
     Path(account_id): Path<Uuid>,
 ) -> Response {
-    match service.status(principal.company_id, account_id).await {
+    match service.status(account_id).await {
         Ok(out) => (StatusCode::OK, Json(serde_json::json!({ "success": true, "data": out }))).into_response(),
         Err(e) => e.into_response(),
     }

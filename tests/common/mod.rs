@@ -97,7 +97,7 @@ impl TargetPort for RealPaymentTarget {
             .ok_or(MapRejected { code: "bad_payload".into(), message: "missing customer_id".into() })?;
         let id = self.payment.create_payment(NewPayment {
             payment_number: format!("MID-{}", req.external_id),
-            company_id: req.company_id, branch_id: None,
+            branch_id: None,
             payment_type: "receive".into(), party_type: Some("customer".into()), party_id: Some(customer),
             posting_date: chrono::Utc::now().date_naive(), currency: None, mode_of_payment_id: None,
             bank_account_id: Uuid::new_v4(), party_account_id: Uuid::new_v4(),

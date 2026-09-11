@@ -5,6 +5,7 @@
 //! Uses backbone-orm's `DatabaseOperations<T>` trait.
 
 mod integration_connector_repository;
+mod integration_account_repository;
 mod integration_event_repository;
 
 // Custom persistence modules
@@ -18,6 +19,7 @@ pub use integration_event_repository::{EventOutcomeRow, FailedEventRow, NewEvent
 
 // Re-exports
 pub use integration_connector_repository::IntegrationConnectorRepository;
+pub use integration_account_repository::IntegrationAccountRepository;
 pub use integration_event_repository::IntegrationEventRepository;
 
 // Re-export backbone-orm types

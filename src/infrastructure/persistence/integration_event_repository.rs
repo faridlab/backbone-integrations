@@ -6,6 +6,11 @@
 //! stops a webhook retry re-applying a payment, its re-read, and the mapped/ignored/failed transitions
 //! on both the receive and the retry path (4-layer rule: services orchestrate, repos hold SQL).
 //!
+//! Tenancy (ADR-0029): the table carries no company column and the module invents no scope —
+//! every statement runs on the request-dedicated connection when the composing service bound
+//! one, else plainly on the pool; the COMPOSING service's tenancy decorator owns org scoping
+//! (org_unit_id + RLS), so an unscoped write fails closed on a decorated deployment.
+//!
 //! Thin newtype over `backbone_orm::GenericCrudRepository<IntegrationEvent, backbone_orm::SoftDelete>`.
 //! All standard CRUD methods are available via `Deref`.
 
@@ -48,7 +53,6 @@ impl IntegrationEventRepository {
 /// `external_id` varies per notification, while `business_key` is the stable business-action identity.
 pub struct NewEventRow<'a> {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub connector_id: Uuid,
     pub event_type: &'a str,
     pub external_id: &'a str,
@@ -81,9 +85,10 @@ impl IntegrationEventRepository {
     /// received (a webhook retry, or a second notification for the same action) and the caller must
     /// re-read the original rather than re-map it. A NEW business action does not conflict.
     ///
-    /// Runs outside a transaction on the pool; the caller wraps it in
-    /// `with_company_scope(Some(company_id))` using the company named on the WEBHOOK payload — that
-    /// explicit fence is what keeps the dedup idempotent off the request path (ADR-0008).
+    /// Runs outside any transaction; it rides the request-dedicated connection when the composing
+    /// service bound one — the decorator's org fence then keeps the dedup idempotent within the
+    /// tenant even off the request path — else runs plainly on the pool (a decorated deployment
+    /// refuses it, fail closed; ADR-0029).
     pub async fn claim_event(
         &self,
         pool: &PgPool,
@@ -93,19 +98,19 @@ impl IntegrationEventRepository {
             pool,
             sqlx::query_scalar(
                 r#"INSERT INTO integrations.integration_events
-                     (id, company_id, connector_id, event_type, external_id, business_key, status, payload)
-                   VALUES ($1,$2,$3,$4,$5,$6,'received'::integration_status,$7)
+                     (id, connector_id, event_type, external_id, business_key, status, payload)
+                   VALUES ($1,$2,$3,$4,$5,'received'::integration_status,$6)
                    ON CONFLICT (connector_id, business_key) DO NOTHING
                    RETURNING id"#,
             )
-            .bind(e.id).bind(e.company_id).bind(e.connector_id).bind(e.event_type)
+            .bind(e.id).bind(e.connector_id).bind(e.event_type)
             .bind(e.external_id).bind(e.business_key).bind(e.raw),
         )
         .await
     }
 
-    /// Re-read the original after a losing dedup claim — the row is known to exist. Same explicit
-    /// webhook-company scope as [`Self::claim_event`].
+    /// Re-read the original after a losing dedup claim — the row is known to exist. Same connection
+    /// discipline as [`Self::claim_event`].
     pub async fn fetch_by_business_key(
         &self,
         pool: &PgPool,
@@ -129,7 +134,7 @@ impl IntegrationEventRepository {
     /// Record a successful mapping to an internal action. State-guarded on `received`.
     ///
     /// Takes the CALLER'S connection so this and the outbox stage commit as one unit. The caller has
-    /// already bound the event's company on it (`bind_company_on`) — don't re-bind here.
+    /// already bound the ambient org scope on it when one is present — don't re-bind here.
     pub async fn mark_mapped(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -187,8 +192,8 @@ impl IntegrationEventRepository {
     /// A connector's FAILED events — the operator's failure report and the retry loop's work list.
     ///
     /// ID-only: the connector id alone identifies the set, so the read rides the request-dedicated
-    /// connection's `app.company_id` and another tenant's connector returns nothing. A non-request caller
-    /// must wrap this in `with_company_scope(Some(company_id))`.
+    /// connection when the composing service bound one — the decorator's org fence then hides
+    /// another tenant's connector — else runs plainly on the pool (ADR-0029).
     pub async fn fetch_failed(
         &self,
         pool: &PgPool,
@@ -220,8 +225,8 @@ impl IntegrationEventRepository {
     /// caller only stages the event (and counts it) when the transition really happened.
     ///
     /// Takes the CALLER'S connection so the transition and the outbox stage commit as one unit — and so
-    /// the caller can roll back when it loses. The caller has already bound the connector's company on
-    /// it — don't re-bind here.
+    /// the caller can roll back when it loses. The caller has already bound the ambient org scope on
+    /// it when one is present — don't re-bind here.
     pub async fn retry_mark_mapped(
         &self,
         conn: &mut sqlx::PgConnection,
@@ -243,8 +248,8 @@ impl IntegrationEventRepository {
     /// The RETRY path's `failed → ignored` transition (the target now says this event is a no-op).
     /// State-guarded on `failed`.
     ///
-    /// Runs outside a transaction; the caller wraps it in `with_company_scope(Some(company_id))` with the
-    /// connector's own company, since the retry loop may outlive the request scope.
+    /// Runs outside any transaction; it rides the request-dedicated connection when the composing
+    /// service bound one, else runs plainly on the pool (ADR-0029).
     pub async fn retry_mark_ignored(
         &self,
         pool: &PgPool,
@@ -264,7 +269,7 @@ impl IntegrationEventRepository {
     }
 
     /// Refresh a still-failing event's error after a retry attempt — the status deliberately stays
-    /// `failed` so the next retry picks it up again. Same caller-supplied company scope as
+    /// `failed` so the next retry picks it up again. Same connection discipline as
     /// [`Self::retry_mark_ignored`].
     pub async fn set_error_detail(
         &self,

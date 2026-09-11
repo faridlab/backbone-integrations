@@ -57,3 +57,8 @@ user_owned:
 
   # Hand-authored module documentation.
   - "docs/**"
+
+  # Hand-authored migrations (the tenancy strip — the strip's ordering guard is
+  # hand-authored logic, not schema-derived emission).
+  - "migrations/20260911120000_strip_tenancy.up.sql"
+  - "migrations/20260911120000_strip_tenancy.down.sql"

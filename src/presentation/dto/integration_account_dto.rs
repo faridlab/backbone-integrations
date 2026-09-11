@@ -34,9 +34,6 @@ use crate::domain::entity::OAuthProvider;
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct CreateIntegrationAccountDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     pub provider: OAuthProvider,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "account_ref")]
@@ -65,9 +62,6 @@ pub struct CreateIntegrationAccountDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateIntegrationAccountDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     pub provider: OAuthProvider,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "account_ref")]
@@ -96,9 +90,6 @@ pub struct UpdateIntegrationAccountDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct PatchIntegrationAccountDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<OAuthProvider>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -120,7 +111,7 @@ pub struct PatchIntegrationAccountDto {
 impl PatchIntegrationAccountDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.provider.is_some() || self.account_ref.is_some() || self.status.is_some() || self.scopes.is_some() || self.pkce_verifier.is_some() || self.expires_at.is_some() || self.last_refreshed_at.is_some()
+        self.provider.is_some() || self.account_ref.is_some() || self.status.is_some() || self.scopes.is_some() || self.pkce_verifier.is_some() || self.expires_at.is_some() || self.last_refreshed_at.is_some()
     }
 }
 
@@ -138,8 +129,6 @@ impl PatchIntegrationAccountDto {
 pub struct IntegrationAccountResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     pub provider: OAuthProvider,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub account_ref: String,
@@ -206,9 +195,9 @@ impl IntegrationAccountListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct IntegrationAccountSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub provider: OAuthProvider,
     pub account_ref: String,
+    pub status: IntegrationAccountStatus,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -220,7 +209,6 @@ impl From<IntegrationAccount> for IntegrationAccountResponseDto {
     fn from(entity: IntegrationAccount) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             provider: entity.provider,
             account_ref: entity.account_ref,
             status: entity.status,
@@ -238,9 +226,9 @@ impl From<IntegrationAccount> for IntegrationAccountSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             provider: entity.provider,
             account_ref: entity.account_ref,
+            status: entity.status,
             created_at,
         }
     }
@@ -250,7 +238,6 @@ impl From<CreateIntegrationAccountDto> for IntegrationAccount {
     fn from(dto: CreateIntegrationAccountDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             provider: dto.provider,
             account_ref: dto.account_ref,
             status: dto.status,
@@ -267,7 +254,6 @@ impl From<&IntegrationAccount> for IntegrationAccountResponseDto {
     fn from(entity: &IntegrationAccount) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             provider: entity.provider.clone(),
             account_ref: entity.account_ref.clone(),
             status: entity.status.clone(),
@@ -288,7 +274,6 @@ impl backbone_core::FromCreateDto<CreateIntegrationAccountDto> for IntegrationAc
 
 impl backbone_core::ApplyUpdateDto<UpdateIntegrationAccountDto> for IntegrationAccount {
     fn apply_update(mut self, dto: UpdateIntegrationAccountDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.provider = dto.provider;
         self.account_ref = dto.account_ref;
         self.status = dto.status;
@@ -308,4 +293,3 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationAccountDto> for IntegrationA
 // Add custom DTOs specific to IntegrationAccount here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
-

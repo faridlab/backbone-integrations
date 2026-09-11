@@ -36,10 +36,6 @@ models:
         type: uuid
         attributes: ["@id", "@default(uuid)"]
         description: "Unique account id"
-      company_id:
-        type: uuid
-        attributes: ["@required", "@exclude_from_foreign_key_check"]
-        description: "Owning company # logical FK to organization.Company.id"
       provider:
         type: OAuthProvider
         attributes: ["@required"]
@@ -83,10 +79,10 @@ models:
         attributes: ["@audit_metadata"]
         description: "Audit metadata"
     indexes:
-      - type: unique
-        fields: [company_id, provider, account_ref]
-      - type: index
-        fields: [company_id, status]
+      # No tenancy indexes (ADR-0029): the module is tenant-agnostic. The per-unit
+      # one-connection unique — one live account per (provider, account_ref) per
+      # org unit — is installed by the composing service's tenancy decorator
+      # (org_unit_id-leading), not declared here.
 
 enums:
   - name: OAuthProvider

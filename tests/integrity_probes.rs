@@ -8,9 +8,9 @@ use backbone_integrations::application::service::integrations_write_service::*;
 use serde_json::json;
 use uuid::Uuid;
 
-async fn connector(svc: &IntegrationsWriteService, company: Uuid, provider: &str) -> Uuid {
+async fn connector(svc: &IntegrationsWriteService, provider: &str) -> Uuid {
     svc.register_connector(NewConnector {
-        company_id: company, provider: provider.into(), kind: "payment_gateway".into(), direction: "inbound".into(),
+        provider: provider.into(), kind: "payment_gateway".into(), direction: "inbound".into(),
     }).await.unwrap()
 }
 fn event(company: Uuid, conn: Uuid, ext: &str) -> InboundEvent {
@@ -26,7 +26,7 @@ async fn iip1_external_id_required() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
+    let conn = connector(&svc, &format!("p-{}", Uuid::new_v4())).await;
     let r = svc.receive_event(event(company, conn, "  "), &FakeTarget::new(), &CapturingSink::new()).await;
     assert!(matches!(r, Err(IntegrationError::Invalid(_))));
 }
@@ -37,7 +37,7 @@ async fn iip2_inactive_connector_rejected() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
+    let conn = connector(&svc, &format!("p-{}", Uuid::new_v4())).await;
     sqlx::query("UPDATE integrations.integration_connectors SET status='inactive' WHERE id=$1")
         .bind(conn).execute(&pool).await.unwrap();
     let r = svc.receive_event(event(company, conn, "n-x"), &FakeTarget::new(), &CapturingSink::new()).await;
@@ -50,8 +50,8 @@ async fn iip3_dedup_is_per_connector() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let a = connector(&svc, company, &format!("midtrans-{}", Uuid::new_v4())).await;
-    let b = connector(&svc, company, &format!("xendit-{}", Uuid::new_v4())).await;
+    let a = connector(&svc, &format!("midtrans-{}", Uuid::new_v4())).await;
+    let b = connector(&svc, &format!("xendit-{}", Uuid::new_v4())).await;
     let target = FakeTarget::new();
 
     let ra = svc.receive_event(event(company, a, "TXN-42"), &target, &CapturingSink::new()).await.unwrap();
@@ -69,7 +69,7 @@ async fn iip4_lifecycle_event_durable() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company, &format!("p-{}", Uuid::new_v4())).await;
+    let conn = connector(&svc, &format!("p-{}", Uuid::new_v4())).await;
     let out = svc.receive_event(event(company, conn, &format!("n-{}", Uuid::new_v4())), &FakeTarget::new(), &DroppingSink).await.unwrap();
     let staged: i64 = sqlx::query_scalar(
         "SELECT count(*) FROM integrations.outbox_events WHERE aggregate_id=$1 AND event_type='IntegrationEventMapped'")
@@ -85,7 +85,7 @@ async fn iip5_second_settled_notification_dedups() {
     let pool = pool().await;
     let company = Uuid::new_v4();
     let svc = module(pool.clone()).await.integrations_write_service.clone();
-    let conn = connector(&svc, company, &format!("midtrans-{}", Uuid::new_v4())).await;
+    let conn = connector(&svc, &format!("midtrans-{}", Uuid::new_v4())).await;
     let target = FakeTarget::new();
 
     // Two DIFFERENT notification ids for the SAME order settlement.

@@ -7,6 +7,7 @@
 
 
 pub mod integration_connector_repository;
+pub mod integration_account_repository;
 pub mod integration_event_repository;
 
 // Re-exports
@@ -15,6 +16,12 @@ pub use integration_connector_repository::{
     IntegrationConnectorPaginationParams,
     IntegrationConnectorPaginatedResult,
     IntegrationConnectorFilter,
+};
+pub use integration_account_repository::{
+    IntegrationAccountRepository,
+    IntegrationAccountPaginationParams,
+    IntegrationAccountPaginatedResult,
+    IntegrationAccountFilter,
 };
 pub use integration_event_repository::{
     IntegrationEventRepository,

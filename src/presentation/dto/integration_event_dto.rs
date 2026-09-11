@@ -34,9 +34,6 @@ use crate::domain::entity::IntegrationStatus;
 #[serde(rename_all = "camelCase")]
 pub struct CreateIntegrationEventDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "connector_id")]
     pub connector_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -72,9 +69,6 @@ pub struct CreateIntegrationEventDto {
 #[cfg_attr(feature = "validation", derive(Validate))]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateIntegrationEventDto {
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(alias = "company_id")]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(alias = "connector_id")]
     pub connector_id: Uuid,
@@ -112,9 +106,6 @@ pub struct UpdateIntegrationEventDto {
 #[serde(rename_all = "camelCase")]
 pub struct PatchIntegrationEventDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    #[serde(skip_serializing_if = "Option::is_none", alias = "company_id")]
-    pub company_id: Option<Uuid>,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     #[serde(skip_serializing_if = "Option::is_none", alias = "connector_id")]
     pub connector_id: Option<Uuid>,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -142,7 +133,7 @@ pub struct PatchIntegrationEventDto {
 impl PatchIntegrationEventDto {
     /// Check if any field is set
     pub fn has_changes(&self) -> bool {
-        self.company_id.is_some() || self.connector_id.is_some() || self.event_type.is_some() || self.external_id.is_some() || self.business_key.is_some() || self.status.is_some() || self.payload.is_some() || self.mapped_ref_type.is_some() || self.mapped_ref_id.is_some() || self.error_detail.is_some()
+        self.connector_id.is_some() || self.event_type.is_some() || self.external_id.is_some() || self.business_key.is_some() || self.status.is_some() || self.payload.is_some() || self.mapped_ref_type.is_some() || self.mapped_ref_id.is_some() || self.error_detail.is_some()
     }
 }
 
@@ -160,8 +151,6 @@ impl PatchIntegrationEventDto {
 pub struct IntegrationEventResponseDto {
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub id: Uuid,
-    #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
-    pub company_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "550e8400-e29b-41d4-a716-446655440000"))]
     pub connector_id: Uuid,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
@@ -233,9 +222,9 @@ impl IntegrationEventListResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct IntegrationEventSummaryDto {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub connector_id: Uuid,
     pub event_type: String,
+    pub external_id: String,
     pub created_at: Option<DateTime<Utc>>,
 }
 
@@ -247,7 +236,6 @@ impl From<IntegrationEvent> for IntegrationEventResponseDto {
     fn from(entity: IntegrationEvent) -> Self {
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             connector_id: entity.connector_id,
             event_type: entity.event_type,
             external_id: entity.external_id,
@@ -267,9 +255,9 @@ impl From<IntegrationEvent> for IntegrationEventSummaryDto {
         let created_at = backbone_core::PersistentEntity::created_at(&entity);
         Self {
             id: entity.id,
-            company_id: entity.company_id,
             connector_id: entity.connector_id,
             event_type: entity.event_type,
+            external_id: entity.external_id,
             created_at,
         }
     }
@@ -279,7 +267,6 @@ impl From<CreateIntegrationEventDto> for IntegrationEvent {
     fn from(dto: CreateIntegrationEventDto) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id: dto.company_id,
             connector_id: dto.connector_id,
             event_type: dto.event_type,
             external_id: dto.external_id,
@@ -298,7 +285,6 @@ impl From<&IntegrationEvent> for IntegrationEventResponseDto {
     fn from(entity: &IntegrationEvent) -> Self {
         Self {
             id: entity.id.clone(),
-            company_id: entity.company_id.clone(),
             connector_id: entity.connector_id.clone(),
             event_type: entity.event_type.clone(),
             external_id: entity.external_id.clone(),
@@ -321,7 +307,6 @@ impl backbone_core::FromCreateDto<CreateIntegrationEventDto> for IntegrationEven
 
 impl backbone_core::ApplyUpdateDto<UpdateIntegrationEventDto> for IntegrationEvent {
     fn apply_update(mut self, dto: UpdateIntegrationEventDto) -> backbone_core::ServiceResult<Self> {
-        self.company_id = dto.company_id;
         self.connector_id = dto.connector_id;
         self.event_type = dto.event_type;
         self.external_id = dto.external_id;

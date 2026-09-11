@@ -52,7 +52,6 @@ impl std::ops::Deref for IntegrationConnectorId {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct IntegrationConnector {
     pub id: Uuid,
-    pub company_id: Uuid,
     pub provider: String,
     pub kind: ConnectorKind,
     pub direction: ConnectorDirection,
@@ -69,10 +68,9 @@ impl IntegrationConnector {
     }
 
     /// Create a new IntegrationConnector with required fields
-    pub fn new(company_id: Uuid, provider: String, kind: ConnectorKind, direction: ConnectorDirection, status: ConnectorStatus) -> Self {
+    pub fn new(provider: String, kind: ConnectorKind, direction: ConnectorDirection, status: ConnectorStatus) -> Self {
         Self {
             id: Uuid::new_v4(),
-            company_id,
             provider,
             kind,
             direction,
@@ -145,9 +143,6 @@ impl IntegrationConnector {
     pub fn apply_patch(&mut self, fields: std::collections::HashMap<String, serde_json::Value>) {
         for (key, value) in fields {
             match key.as_str() {
-                "company_id" => {
-                    if let Ok(v) = serde_json::from_value(value) { self.company_id = v; }
-                }
                 "provider" => {
                     if let Ok(v) = serde_json::from_value(value) { self.provider = v; }
                 }
@@ -214,7 +209,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationConnector {
     fn column_types() -> std::collections::HashMap<String, String> {
         let mut m = std::collections::HashMap::new();
         m.insert("id".to_string(), "uuid".to_string());
-        m.insert("company_id".to_string(), "uuid".to_string());
         m.insert("kind".to_string(), "connector_kind".to_string());
         m.insert("direction".to_string(), "connector_direction".to_string());
         m.insert("status".to_string(), "connector_status".to_string());
@@ -222,9 +216,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationConnector {
     }
     fn search_fields() -> &'static [&'static str] {
         &["provider"]
-    }
-    fn company_field() -> Option<&'static str> {
-        Some("company_id")
     }
 }
 
@@ -234,7 +225,6 @@ impl backbone_orm::EntityRepoMeta for IntegrationConnector {
 /// System fields (id, metadata, timestamps) are auto-initialized.
 #[derive(Debug, Clone, Default)]
 pub struct IntegrationConnectorBuilder {
-    company_id: Option<Uuid>,
     provider: Option<String>,
     kind: Option<ConnectorKind>,
     direction: Option<ConnectorDirection>,
@@ -242,12 +232,6 @@ pub struct IntegrationConnectorBuilder {
 }
 
 impl IntegrationConnectorBuilder {
-    /// Set the company_id field (required)
-    pub fn company_id(mut self, value: Uuid) -> Self {
-        self.company_id = Some(value);
-        self
-    }
-
     /// Set the provider field (required)
     pub fn provider(mut self, value: String) -> Self {
         self.provider = Some(value);
@@ -276,13 +260,11 @@ impl IntegrationConnectorBuilder {
     ///
     /// Returns Err if any required field without a default is missing.
     pub fn build(self) -> Result<IntegrationConnector, String> {
-        let company_id = self.company_id.ok_or_else(|| "company_id is required".to_string())?;
         let provider = self.provider.ok_or_else(|| "provider is required".to_string())?;
         let kind = self.kind.ok_or_else(|| "kind is required".to_string())?;
 
         Ok(IntegrationConnector {
             id: Uuid::new_v4(),
-            company_id,
             provider,
             kind,
             direction: self.direction.unwrap_or_default(),

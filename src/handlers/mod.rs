@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 // Import all services
 use crate::application::service::IntegrationConnectorService;
+use crate::application::service::IntegrationAccountService;
 use crate::application::service::IntegrationEventService;
 
 /// Application state for dependency injection.
@@ -32,6 +33,8 @@ use crate::application::service::IntegrationEventService;
 pub struct AppState {
     /// IntegrationConnector service
     pub integration_connector_service: Arc<IntegrationConnectorService>,
+    /// IntegrationAccount service
+    pub integration_account_service: Arc<IntegrationAccountService>,
     /// IntegrationEvent service
     pub integration_event_service: Arc<IntegrationEventService>,
 }
@@ -40,10 +43,12 @@ impl AppState {
     /// Create a new AppState with all services.
     pub fn new(
         integration_connector_service: Arc<IntegrationConnectorService>,
+        integration_account_service: Arc<IntegrationAccountService>,
         integration_event_service: Arc<IntegrationEventService>
     ) -> Self {
         Self {
             integration_connector_service,
+            integration_account_service,
             integration_event_service,
         }
     }
@@ -52,6 +57,7 @@ impl AppState {
     pub fn from_module(module: &crate::IntegrationsModule) -> Self {
         Self {
             integration_connector_service: module.integration_connector_service.clone(),
+            integration_account_service: module.integration_account_service.clone(),
             integration_event_service: module.integration_event_service.clone(),
         }
     }
@@ -63,6 +69,7 @@ impl AppState {
 #[derive(Default)]
 pub struct AppStateBuilder {
     integration_connector_service: Option<Arc<IntegrationConnectorService>>,
+    integration_account_service: Option<Arc<IntegrationAccountService>>,
     integration_event_service: Option<Arc<IntegrationEventService>>,
 }
 
@@ -75,6 +82,12 @@ impl AppStateBuilder {
     /// Set the IntegrationConnector service.
     pub fn with_integration_connector_service(mut self, service: Arc<IntegrationConnectorService>) -> Self {
         self.integration_connector_service = Some(service);
+        self
+    }
+
+    /// Set the IntegrationAccount service.
+    pub fn with_integration_account_service(mut self, service: Arc<IntegrationAccountService>) -> Self {
+        self.integration_account_service = Some(service);
         self
     }
 
@@ -92,6 +105,7 @@ impl AppStateBuilder {
     pub fn build(self) -> AppState {
         AppState {
             integration_connector_service: self.integration_connector_service.expect("integration_connector_service is required"),
+            integration_account_service: self.integration_account_service.expect("integration_account_service is required"),
             integration_event_service: self.integration_event_service.expect("integration_event_service is required"),
         }
     }

@@ -8,6 +8,7 @@ pub mod error;
 pub use error::{ServiceError, ServiceResult};
 
 pub mod integration_connector_service;
+pub mod integration_account_service;
 pub mod integration_event_service;
 
 // <<< CUSTOM
@@ -19,6 +20,7 @@ pub mod integrations_oauth;
 // END CUSTOM
 
 pub use integration_connector_service::IntegrationConnectorService;
+pub use integration_account_service::IntegrationAccountService;
 pub use integration_event_service::IntegrationEventService;
 // <<< CUSTOM
 pub use integrations_ports::{MapOutcome, MapRejected, MapRequest, MappedRef, TargetPort};

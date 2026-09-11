@@ -6,7 +6,6 @@
 
 -- INSERT INTO integrations.integration_connectors (
 --     id,
---     company_id,
 --     provider,
 --     kind,
 --     direction,
