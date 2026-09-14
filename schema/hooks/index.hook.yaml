@@ -8,8 +8,7 @@ module: integrations
 version: 2
 
 # Import all hook files.
-imports:
-  - example.hook.yaml
+imports: []
 
 # =============================================================================
 # Module-level configuration
