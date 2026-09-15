@@ -7,7 +7,7 @@ info:
     This API provides 11 standard CRUD endpoints for each model.
 
 servers:
-  - url: http://localhost:3000
+  - url: /
     description: Development server
 
 tags:
@@ -17,7 +17,7 @@ tags:
     description: IntegrationEvent management endpoints
 
 paths:
-  /api/v1/integration_connectors:
+  /api/v1/integrations/integration_connectors:
     get:
       tags:
         - IntegrationConnectors
@@ -63,7 +63,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/integration_connectors/{id}:
+  /api/v1/integrations/integration_connectors/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -135,7 +135,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/integration_connectors/bulk:
+  /api/v1/integrations/integration_connectors/bulk:
     post:
       tags:
         - IntegrationConnectors
@@ -227,7 +227,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_connectors/upsert:
+  /api/v1/integrations/integration_connectors/upsert:
     post:
       tags:
         - IntegrationConnectors
@@ -257,7 +257,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IntegrationConnector'
 
-  /api/v1/integration_connectors/trash:
+  /api/v1/integrations/integration_connectors/trash:
     get:
       tags:
         - IntegrationConnectors
@@ -274,7 +274,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IntegrationConnectorList'
 
-  /api/v1/integration_connectors/{id}/restore:
+  /api/v1/integrations/integration_connectors/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -292,7 +292,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/integration_connectors/empty:
+  /api/v1/integrations/integration_connectors/empty:
     delete:
       tags:
         - IntegrationConnectors
@@ -309,7 +309,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/integration_connectors/delete/bulk:
+  /api/v1/integrations/integration_connectors/delete/bulk:
     post:
       tags:
         - IntegrationConnectors
@@ -329,7 +329,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_connectors/restore/bulk:
+  /api/v1/integrations/integration_connectors/restore/bulk:
     post:
       tags:
         - IntegrationConnectors
@@ -347,7 +347,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_connectors/restore/all:
+  /api/v1/integrations/integration_connectors/restore/all:
     post:
       tags:
         - IntegrationConnectors
@@ -363,7 +363,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/integration_connectors/trash/bulk:
+  /api/v1/integrations/integration_connectors/trash/bulk:
     delete:
       tags:
         - IntegrationConnectors
@@ -383,7 +383,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_events:
+  /api/v1/integrations/integration_events:
     get:
       tags:
         - IntegrationEvents
@@ -429,7 +429,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
-  /api/v1/integration_events/{id}:
+  /api/v1/integrations/integration_events/{id}:
     parameters:
       - $ref: '#/components/parameters/IdParam'
 
@@ -501,7 +501,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/integration_events/bulk:
+  /api/v1/integrations/integration_events/bulk:
     post:
       tags:
         - IntegrationEvents
@@ -593,7 +593,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_events/upsert:
+  /api/v1/integrations/integration_events/upsert:
     post:
       tags:
         - IntegrationEvents
@@ -623,7 +623,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IntegrationEvent'
 
-  /api/v1/integration_events/trash:
+  /api/v1/integrations/integration_events/trash:
     get:
       tags:
         - IntegrationEvents
@@ -640,7 +640,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/IntegrationEventList'
 
-  /api/v1/integration_events/{id}/restore:
+  /api/v1/integrations/integration_events/{id}/restore:
     parameters:
       - $ref: '#/components/parameters/IdParam'
     post:
@@ -658,7 +658,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/v1/integration_events/empty:
+  /api/v1/integrations/integration_events/empty:
     delete:
       tags:
         - IntegrationEvents
@@ -675,7 +675,7 @@ paths:
                   deleted_count:
                     type: integer
 
-  /api/v1/integration_events/delete/bulk:
+  /api/v1/integrations/integration_events/delete/bulk:
     post:
       tags:
         - IntegrationEvents
@@ -695,7 +695,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_events/restore/bulk:
+  /api/v1/integrations/integration_events/restore/bulk:
     post:
       tags:
         - IntegrationEvents
@@ -713,7 +713,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /api/v1/integration_events/restore/all:
+  /api/v1/integrations/integration_events/restore/all:
     post:
       tags:
         - IntegrationEvents
@@ -729,7 +729,7 @@ paths:
                 properties:
                   restored: { type: integer }
 
-  /api/v1/integration_events/trash/bulk:
+  /api/v1/integrations/integration_events/trash/bulk:
     delete:
       tags:
         - IntegrationEvents
