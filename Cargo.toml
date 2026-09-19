@@ -1,6 +1,6 @@
 [package]
 name = "backbone-integrations"
-version = "0.5.6"
+version = "0.5.7"
 edition = "2021"
 description = "Minimal Backbone Framework module skeleton"
 
@@ -17,12 +17,12 @@ path = "src/lib.rs"
 # or `rev = "<commit-sha>"`. Cargo dedupes the git fetch — the repo is only
 # cloned once even though four crates reference it.
 # -----------------------------------------------------------------------------
-backbone-core = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.23", features = ["postgres"] }
-backbone-orm = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.23" }
-backbone-auth = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.23" }
-backbone-messaging = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.23" }
+backbone-core = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.24", features = ["postgres"] }
+backbone-orm = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.24" }
+backbone-auth = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.24" }
+backbone-messaging = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.24" }
 # Transactional outbox — the integration event is staged in the same tx as the record (durable).
-backbone-outbox = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.23", features = ["multi_tenant"] }
+backbone-outbox = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.24", features = ["multi_tenant"] }
 
 # Core async runtime and serialization
 tokio = { version = "1.0", features = ["full"] }
