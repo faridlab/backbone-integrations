@@ -10,6 +10,5 @@ pub mod integration_connector_api_test;
 pub mod integration_event_api_test;
 
 // Re-exports for convenience
-pub use crud_test_base::*;
 pub use integration_connector_api_test::*;
 pub use integration_event_api_test::*;

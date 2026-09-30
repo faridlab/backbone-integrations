@@ -247,6 +247,8 @@ impl backbone_orm::EntityRepoMeta for IntegrationAccount {
         m.insert("id".to_string(), "uuid".to_string());
         m.insert("provider".to_string(), "o_auth_provider".to_string());
         m.insert("status".to_string(), "integration_account_status".to_string());
+        m.insert("expires_at".to_string(), "timestamptz".to_string());
+        m.insert("last_refreshed_at".to_string(), "timestamptz".to_string());
         m
     }
     fn search_fields() -> &'static [&'static str] {
