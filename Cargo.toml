@@ -3,6 +3,7 @@ name = "backbone-integrations"
 version = "0.5.19"
 edition = "2021"
 description = "Minimal Backbone Framework module skeleton"
+license = "MIT OR Apache-2.0"
 
 [lib]
 path = "src/lib.rs"
