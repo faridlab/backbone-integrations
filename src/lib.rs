@@ -181,6 +181,11 @@ impl IntegrationsModuleBuilder {
     pub fn new() -> Self {
         Self {
             db_pool: None,
+            // <<< CUSTOM
+            oauth_config: None,
+            oauth_transport: None,
+            oauth_store: None,
+            // END CUSTOM
         }
     }
 
@@ -268,11 +273,6 @@ impl IntegrationsModuleBuilder {
             integration_connector_service,
             integration_account_service,
             integration_event_service,
-            // <<< CUSTOM
-            oauth_config: None,
-            oauth_transport: None,
-            oauth_store: None,
-            // END CUSTOM
             // <<< CUSTOM
             integrations_write_service,
             integrations_oauth,
