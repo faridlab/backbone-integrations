@@ -1,9 +1,11 @@
 [package]
 name = "backbone-integrations"
-version = "0.5.20"
+version = "0.5.21"
 edition = "2021"
-description = "Minimal Backbone Framework module skeleton"
+description = "Integration registry: connectors, integration accounts and an idempotent inbound event lane, with one OAuth flow (HMAC-bound state, PKCE)"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/faridlab/backbone-integrations"
+exclude = [".claude/", ".github/", "graphify-out/"]
 
 [lib]
 path = "src/lib.rs"
@@ -18,12 +20,12 @@ path = "src/lib.rs"
 # or `rev = "<commit-sha>"`. Cargo dedupes the git fetch — the repo is only
 # cloned once even though four crates reference it.
 # -----------------------------------------------------------------------------
-backbone-core = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.27", features = ["postgres"] }
-backbone-orm = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.27" }
-backbone-auth = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.27" }
-backbone-messaging = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.27" }
+backbone-core = { version = "2.7.35", features = ["postgres"] }
+backbone-orm = { version = "2.7.35" }
+backbone-auth = { version = "2.7.35" }
+backbone-messaging = { version = "2.7.35" }
 # Transactional outbox — the integration event is staged in the same tx as the record (durable).
-backbone-outbox = { git = "https://github.com/faridlab/backbone-framework", tag = "v2.7.27", features = ["multi_tenant"] }
+backbone-outbox = { version = "2.7.35", features = ["multi_tenant"] }
 
 # Core async runtime and serialization
 tokio = { version = "1.0", features = ["full"] }
@@ -111,4 +113,4 @@ url = "2"
 # TEST-ONLY edge: the payment-gateway seam proves a settled-payment notification drives the REAL
 # backbone-payment write path (create_payment) via an in-test TargetPort. Dev-dependency ONLY — the shipped
 # library reaches a module through the port, never a Cargo edge.
-backbone-payment = { path = "../backbone-payment" }
+backbone-payment = { version = "0.11.29" }
