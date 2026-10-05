@@ -18,7 +18,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::{company_scope, org_scope};
 
 use crate::domain::entity::IntegrationConnector;
 
@@ -108,7 +108,7 @@ impl IntegrationConnectorRepository {
         pool: &PgPool,
         connector_id: Uuid,
     ) -> Result<Option<ConnectorGateRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT kind::text AS kind, status::text AS status FROM integrations.integration_connectors
@@ -129,7 +129,7 @@ impl IntegrationConnectorRepository {
         pool: &PgPool,
         connector_id: Uuid,
     ) -> Result<Option<ConnectorRetryRow>, sqlx::Error> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             pool,
             sqlx::query("SELECT kind::text AS kind FROM integrations.integration_connectors WHERE id=$1")
                 .bind(connector_id),

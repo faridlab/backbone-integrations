@@ -18,7 +18,7 @@ use anyhow::Result;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
-use backbone_orm::company_scope;
+use backbone_orm::{company_scope, org_scope};
 
 use crate::domain::entity::IntegrationEvent;
 
@@ -117,7 +117,7 @@ impl IntegrationEventRepository {
         connector_id: Uuid,
         business_key: &str,
     ) -> Result<EventOutcomeRow, sqlx::Error> {
-        let r = company_scope::fetch_one_row_scoped(
+        let r = org_scope::fetch_one_row_scoped(
             pool,
             sqlx::query(
                 r#"SELECT id, status::text AS status, mapped_ref_id FROM integrations.integration_events
@@ -199,7 +199,7 @@ impl IntegrationEventRepository {
         pool: &PgPool,
         connector_id: Uuid,
     ) -> Result<Vec<FailedEventRow>, sqlx::Error> {
-        let rows = company_scope::fetch_all_rows_scoped(
+        let rows = org_scope::fetch_all_rows_scoped(
             pool,
             sqlx::query(
                 r#"SELECT id, event_type, external_id, business_key, error_detail, payload

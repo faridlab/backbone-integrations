@@ -1062,7 +1062,7 @@ impl IntegrationsOauthService {
     /// the decorator's org fence hides another tenant's row — else runs
     /// plainly on the pool.
     async fn fetch_account(&self, account_id: Uuid) -> Result<Option<AccountRow>, OauthError> {
-        let row = company_scope::fetch_optional_row_scoped(
+        let row = org_scope::fetch_optional_row_scoped(
             &self.pool,
             sqlx::query(
                 "SELECT id, provider::text AS provider, account_ref,
