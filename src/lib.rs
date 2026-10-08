@@ -24,16 +24,7 @@ pub mod application;
 pub mod presentation;
 pub mod seeders;
 pub mod exports;
-
-// Re-exports - Infrastructure
-pub use infrastructure::persistence::*;
-
-// Re-exports - Application services
-pub use application::service::IntegrationConnectorService;
-pub use application::service::IntegrationAccountService;
-pub use application::service::IntegrationEventService;
-
-// <<< CUSTOM
+// <<< CUSTOM MODULES
 // The hand-authored write path: receive an inbound provider event idempotently and map it via TargetPort,
 // plus the port + receiver types a composing service needs to wire the seam from one place.
 pub use application::service::IntegrationsWriteService;
@@ -52,6 +43,15 @@ pub use application::service::{
 };
 pub use infrastructure::http::{OAuthTransport, ReqwestOAuthTransport};
 // END CUSTOM
+
+// Re-exports - Infrastructure
+pub use infrastructure::persistence::*;
+
+// Re-exports - Application services
+pub use application::service::IntegrationConnectorService;
+pub use application::service::IntegrationAccountService;
+pub use application::service::IntegrationEventService;
+
 // Re-exports - Workflows
 pub use application::workflows::*;
 
