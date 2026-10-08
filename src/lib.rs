@@ -169,7 +169,8 @@ impl IntegrationsModule {
 /// Builder for IntegrationsModule
 pub struct IntegrationsModuleBuilder {
     db_pool: Option<PgPool>,
-    // <<< CUSTOM - OAuth generation fields (the one flow's construction inputs)
+    // <<< CUSTOM BUILDER FIELDS
+    // OAuth generation fields (the one flow's construction inputs)
     oauth_config: Option<IntegrationsOauthConfig>,
     oauth_transport: Option<Arc<dyn OAuthTransport>>,
     oauth_store: Option<Arc<dyn OAuthCredentialStore>>,
@@ -181,7 +182,7 @@ impl IntegrationsModuleBuilder {
     pub fn new() -> Self {
         Self {
             db_pool: None,
-            // <<< CUSTOM
+            // <<< CUSTOM BUILDER DEFAULTS
             oauth_config: None,
             oauth_transport: None,
             oauth_store: None,
