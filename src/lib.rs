@@ -73,6 +73,7 @@ use sqlx::PgPool;
 /// ```
 pub struct IntegrationsModule {
     pub(crate) integration_connector_service: Arc<IntegrationConnectorService>,
+    #[allow(dead_code)]
     pub(crate) integration_account_service: Arc<IntegrationAccountService>,
     pub(crate) integration_event_service: Arc<IntegrationEventService>,
     // <<< CUSTOM FIELDS
