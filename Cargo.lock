@@ -197,9 +197,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-auth"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0c077eb29ec57d03a1dfc4c24e8f4b5ad8f5b6e266918dcdb710f2630af36a"
+checksum = "098c7046449274c4f901cd33900f745bac0b8f8099ba80e046962478bbd04938"
 dependencies = [
  "anyhow",
  "argon2",
@@ -225,9 +225,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-core"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed2669a06ad9e9c8ddc10ad7054ba572071ce73b5fcc1ed91669595fd30308b3"
+checksum = "bb3ef655234c210619f6231859e7980b9d36f1fed4e772d432e3f2896f10ed36"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -253,9 +253,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-gl-posting"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1ee26377103a159184da59ebc6aec84e4914a9a320ecc8996aab3326e2d75ad"
+checksum = "a337cde44b7fdd92eac940757b075875c045e9356a99e0c22d6f691f04fbd39a"
 dependencies = [
  "async-trait",
  "chrono",
@@ -315,9 +315,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-messaging"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dab3cd8d82192a76240f8416115ec08136208b98bdd9236bbdeb10641347fbf8"
+checksum = "bb982a631e32cdb8dddf922cbecee6c60866c72137b559cc91caa97a9449c01f"
 dependencies = [
  "async-trait",
  "chrono",
@@ -331,9 +331,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-orm"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1dee2e31200eb66df77fc9d99efc79c9b8fa1383ddfe82bbbe825de188797ae8"
+checksum = "42570e6385ae8791184bb9a784ffae4e0f03f52d6b05b63b3b4ee870a7d4bd10"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -351,9 +351,9 @@ dependencies = [
 
 [[package]]
 name = "backbone-outbox"
-version = "3.0.0"
+version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f7166b583666cc0d7bf63c2e86100b92de704523a5fbdd05078a3787c37f382"
+checksum = "0739308df093cf2ef7ee4376c1131ceeeeb759f1c0ce84a089b87b596629566f"
 dependencies = [
  "chrono",
  "serde",
