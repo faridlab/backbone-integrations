@@ -30,6 +30,9 @@ config:
   audit: true
   default_timestamps: true
   generators:
+    # Off-by-default targets this module's released API still carries; it keeps
+    # them until its next breaking release.
+    opt_in: [seeder, specification]
     # Workflow executors are opt-in and nothing runs them; this module's released
     # API still carries them, so it keeps them until its next breaking release.
     workflows: true
