@@ -5,6 +5,7 @@
 pub mod persistence;
 
 // <<< CUSTOM
-pub mod http;
-pub mod jobs;
 // END CUSTOM
+
+// This directory's extension (hand-written; ADR-0031).
+include!("mod.ext.rs");
