@@ -16,9 +16,5 @@ pub type IntegrationConnectorValidator = EntityValidator<IntegrationConnector>;
 pub fn integration_connector_validator() -> IntegrationConnectorValidator {
     EntityValidator::new()
         .rule(RequiredString::new("provider", |e: &IntegrationConnector| &e.provider))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

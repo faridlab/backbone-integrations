@@ -32,5 +32,3 @@ pub type IntegrationEventService = GenericCrudService<
     IntegrationEventRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

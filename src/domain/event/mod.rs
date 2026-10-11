@@ -16,5 +16,3 @@ pub use integration_account_event_handlers::IntegrationAccountEventHandler;
 pub use integration_event_events::{IntegrationEventEvent, IntegrationEventEventPublisher, NoopIntegrationEventEventPublisher};
 pub use integration_event_event_handlers::IntegrationEventEventHandler;
 
-// <<< CUSTOM
-// END CUSTOM

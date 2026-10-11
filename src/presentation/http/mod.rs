@@ -8,14 +8,10 @@
 pub mod integration_connector_handler;
 pub mod integration_event_handler;
 
-// <<< CUSTOM
-// END CUSTOM
 
 // Re-exports
 pub use integration_connector_handler::{create_integration_connector_routes, create_integration_connector_read_routes, create_integration_connector_write_routes};
 pub use integration_event_handler::{create_integration_event_routes, create_integration_event_read_routes, create_integration_event_write_routes};
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

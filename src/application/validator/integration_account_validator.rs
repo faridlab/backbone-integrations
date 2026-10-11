@@ -18,9 +18,5 @@ pub fn integration_account_validator() -> IntegrationAccountValidator {
         .rule(RequiredString::new("account_ref", |e: &IntegrationAccount| &e.account_ref))
         .rule(RequiredString::new("scopes", |e: &IntegrationAccount| &e.scopes))
         .rule(OptionalNotBlank::new("pkce_verifier", |e: &IntegrationAccount| e.pkce_verifier.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

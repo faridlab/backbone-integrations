@@ -289,7 +289,7 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationAccountDto> for IntegrationA
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to IntegrationAccount here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

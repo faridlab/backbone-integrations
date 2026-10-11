@@ -32,5 +32,3 @@ pub type IntegrationAccountService = GenericCrudService<
     IntegrationAccountRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

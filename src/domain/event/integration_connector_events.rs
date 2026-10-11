@@ -11,8 +11,6 @@ use crate::domain::entity::IntegrationConnector;
 /// enum containing a `Crud(CrudEvent<IntegrationConnector>)` variant.
 pub type IntegrationConnectorEvent = CrudEvent<IntegrationConnector>;
 
-// <<< CUSTOM
-// END CUSTOM
 
 use backbone_messaging::{CrudEventPublisher, NoOpCrudEventPublisher};
 use std::sync::Arc;

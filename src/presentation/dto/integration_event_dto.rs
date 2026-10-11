@@ -324,7 +324,7 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationEventDto> for IntegrationEve
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to IntegrationEvent here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+

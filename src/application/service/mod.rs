@@ -11,14 +11,10 @@ pub mod integration_connector_service;
 pub mod integration_account_service;
 pub mod integration_event_service;
 
-// <<< CUSTOM
-// END CUSTOM
 
 pub use integration_connector_service::IntegrationConnectorService;
 pub use integration_account_service::IntegrationAccountService;
 pub use integration_event_service::IntegrationEventService;
-// <<< CUSTOM
-// END CUSTOM
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

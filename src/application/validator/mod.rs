@@ -13,5 +13,3 @@ pub use integration_connector_validator::{IntegrationConnectorValidator, integra
 pub use integration_account_validator::{IntegrationAccountValidator, integration_account_validator};
 pub use integration_event_validator::{IntegrationEventValidator, integration_event_validator};
 
-// <<< CUSTOM
-// END CUSTOM

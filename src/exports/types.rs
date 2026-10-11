@@ -196,6 +196,4 @@ pub struct IntegrationEventRef {
 // CUSTOM TYPES
 // ============================================================================
 
-// <<< CUSTOM TYPES START >>>
 // Add custom public types here
-// <<< CUSTOM TYPES END >>>

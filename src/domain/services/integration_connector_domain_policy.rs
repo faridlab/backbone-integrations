@@ -18,5 +18,3 @@ use crate::domain::entity::IntegrationConnector;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type IntegrationConnectorDomainPolicy = PermitAllPolicy<IntegrationConnector>;
 
-// <<< CUSTOM
-// END CUSTOM

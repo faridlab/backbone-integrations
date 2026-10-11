@@ -32,5 +32,3 @@ pub type IntegrationConnectorService = GenericCrudService<
     IntegrationConnectorRepository,
 >;
 
-// <<< CUSTOM
-// END CUSTOM

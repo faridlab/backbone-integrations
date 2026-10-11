@@ -18,5 +18,3 @@ use crate::domain::entity::IntegrationEvent;
 /// service. `PermitAllPolicy` is the safe default until then.
 pub type IntegrationEventDomainPolicy = PermitAllPolicy<IntegrationEvent>;
 
-// <<< CUSTOM
-// END CUSTOM

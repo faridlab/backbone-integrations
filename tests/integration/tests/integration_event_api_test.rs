@@ -122,6 +122,4 @@ mod tests {
 // CUSTOM TESTS
 // ============================================================================
 
-// <<< CUSTOM TESTS START >>>
 // Add IntegrationEvent specific tests here
-// <<< CUSTOM TESTS END >>>

@@ -37,3 +37,4 @@ async fn test_integration_event_api() {
         panic!("{} tests failed", failed.len());
     }
 }
+

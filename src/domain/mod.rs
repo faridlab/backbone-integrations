@@ -14,5 +14,3 @@ pub use services::*;
 pub use specifications::*;
 pub use entity::*;
 
-// <<< CUSTOM
-// END CUSTOM

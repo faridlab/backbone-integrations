@@ -10,5 +10,3 @@ pub mod integration_connector_specification;
 pub mod integration_account_specification;
 pub mod integration_event_specification;
 
-// <<< CUSTOM
-// END CUSTOM

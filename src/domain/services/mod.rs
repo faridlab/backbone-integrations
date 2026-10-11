@@ -10,5 +10,3 @@ pub use integration_connector_domain_policy::IntegrationConnectorDomainPolicy;
 pub use integration_account_domain_policy::IntegrationAccountDomainPolicy;
 pub use integration_event_domain_policy::IntegrationEventDomainPolicy;
 
-// <<< CUSTOM
-// END CUSTOM

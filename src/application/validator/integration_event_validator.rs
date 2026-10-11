@@ -21,9 +21,5 @@ pub fn integration_event_validator() -> IntegrationEventValidator {
         .rule(RequiredString::new("payload", |e: &IntegrationEvent| &e.payload))
         .rule(OptionalNotBlank::new("mapped_ref_type", |e: &IntegrationEvent| e.mapped_ref_type.as_deref()))
         .rule(OptionalNotBlank::new("error_detail", |e: &IntegrationEvent| e.error_detail.as_deref()))
-    // <<< CUSTOM RULES
-    // END CUSTOM RULES
 }
 
-// <<< CUSTOM
-// END CUSTOM

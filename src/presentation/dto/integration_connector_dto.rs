@@ -251,7 +251,7 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationConnectorDto> for Integratio
 // Custom DTOs
 // =============================================================================
 
-// <<< CUSTOM DTOs
 // Add custom DTOs specific to IntegrationConnector here.
 // This section will be preserved during regeneration.
 // >>> END CUSTOM DTOs
+
