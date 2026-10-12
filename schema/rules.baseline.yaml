@@ -1,0 +1,7 @@
+# The rule ratchet (schema doctor): these counts may only go down. Regenerate with
+# `metaphor schema rules . --update-baseline` after enforcing a rule.
+unenforced: 0
+warnings: 0
+machines_without_verbs: 0
+untested_rule_ids: 0
+unenforced_rules: []
