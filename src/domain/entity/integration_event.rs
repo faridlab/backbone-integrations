@@ -260,6 +260,9 @@ impl backbone_orm::EntityRepoMeta for IntegrationEvent {
     fn search_fields() -> &'static [&'static str] {
         &["event_type", "external_id", "business_key", "payload"]
     }
+    fn relations() -> &'static [(&'static str, &'static str, &'static str)] {
+        &[("connector", "integration_connectors", "connectorId")]
+    }
 }
 
 /// Builder for IntegrationEvent entity
