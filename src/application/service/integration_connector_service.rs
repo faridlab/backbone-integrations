@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<IntegrationConnector> for Integratio
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `provider_required` (@required on IntegrationConnector.provider)
         if (create || (update && r::changed(old.as_ref(), row, &["provider"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "provider")), r::not(r::is_empty(r::trim(r::field(row, "provider")))))) {
@@ -64,7 +64,7 @@ impl backbone_core::write_guard::WriteGuard<IntegrationConnector> for Integratio
         }
         // `provider_max_length` (@length(max=60) on IntegrationConnector.provider)
         if (create || (update && r::changed(old.as_ref(), row, &["provider"]))) && !r::holds(&r::le(r::length(r::field(row, "provider")), r::Val::Num(60.0_f64))) {
-            shadow.push(Violation::new("provider", "max_length", "provider must be at most 60 characters").with_param("max", 60_i64));
+            refuse.push(Violation::new("provider", "max_length", "provider must be at most 60 characters").with_param("max", 60_i64));
         }
         GuardOutcome { refuse, shadow }
     }

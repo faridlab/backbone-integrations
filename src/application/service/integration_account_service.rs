@@ -56,7 +56,7 @@ impl backbone_core::write_guard::WriteGuard<IntegrationAccount> for IntegrationA
         };
         let row = &row;
         let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
-        let mut shadow = Vec::new();
+        let shadow = Vec::new();
         let mut refuse = Vec::new();
         // `account_ref_required` (@required on IntegrationAccount.account_ref)
         if (create || (update && r::changed(old.as_ref(), row, &["account_ref"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "account_ref")), r::not(r::is_empty(r::trim(r::field(row, "account_ref")))))) {
@@ -64,11 +64,11 @@ impl backbone_core::write_guard::WriteGuard<IntegrationAccount> for IntegrationA
         }
         // `account_ref_max_length` (@length(max=120) on IntegrationAccount.account_ref)
         if (create || (update && r::changed(old.as_ref(), row, &["account_ref"]))) && !r::holds(&r::le(r::length(r::field(row, "account_ref")), r::Val::Num(120.0_f64))) {
-            shadow.push(Violation::new("account_ref", "max_length", "account_ref must be at most 120 characters").with_param("max", 120_i64));
+            refuse.push(Violation::new("account_ref", "max_length", "account_ref must be at most 120 characters").with_param("max", 120_i64));
         }
         // `pkce_verifier_max_length` (@length(max=256) on IntegrationAccount.pkce_verifier)
         if (create || (update && r::changed(old.as_ref(), row, &["pkce_verifier"]))) && !r::holds(&r::le(r::length(r::field(row, "pkce_verifier")), r::Val::Num(256.0_f64))) {
-            shadow.push(Violation::new("pkce_verifier", "max_length", "pkce_verifier must be at most 256 characters").with_param("max", 256_i64));
+            refuse.push(Violation::new("pkce_verifier", "max_length", "pkce_verifier must be at most 256 characters").with_param("max", 256_i64));
         }
         GuardOutcome { refuse, shadow }
     }
