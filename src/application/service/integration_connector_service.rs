@@ -32,3 +32,41 @@ pub type IntegrationConnectorService = GenericCrudService<
     IntegrationConnectorRepository,
 >;
 
+/// The rules the schema declares for IntegrationConnector, checked against the row a create or update
+/// would store. The generated build attaches it to [`IntegrationConnectorService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct IntegrationConnectorRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<IntegrationConnector> for IntegrationConnectorRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, IntegrationConnector>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `provider_required` (@required on IntegrationConnector.provider)
+        if (create || (update && r::changed(old.as_ref(), row, &["provider"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "provider")), r::not(r::is_empty(r::trim(r::field(row, "provider")))))) {
+            refuse.push(Violation::new("provider", "required", "provider is required"));
+        }
+        // `provider_max_length` (@length(max=60) on IntegrationConnector.provider)
+        if (create || (update && r::changed(old.as_ref(), row, &["provider"]))) && !r::holds(&r::le(r::length(r::field(row, "provider")), r::Val::Num(60.0_f64))) {
+            shadow.push(Violation::new("provider", "max_length", "provider must be at most 60 characters").with_param("max", 60_i64));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+

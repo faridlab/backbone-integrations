@@ -15,6 +15,9 @@ pub mod integration_event_service;
 pub use integration_connector_service::IntegrationConnectorService;
 pub use integration_account_service::IntegrationAccountService;
 pub use integration_event_service::IntegrationEventService;
+pub use integration_connector_service::IntegrationConnectorRowRules;
+pub use integration_account_service::IntegrationAccountRowRules;
+pub use integration_event_service::IntegrationEventRowRules;
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

@@ -189,15 +189,15 @@ impl IntegrationsModuleBuilder {
 
         // IntegrationConnector service
         let integration_connector_repository = Arc::new(IntegrationConnectorRepository::new(db_pool.clone()));
-        let integration_connector_service = Arc::new(IntegrationConnectorService::with_repository(integration_connector_repository.clone()));
+        let integration_connector_service = Arc::new(IntegrationConnectorService::with_repository(integration_connector_repository.clone()).with_guard(Arc::new(crate::application::service::IntegrationConnectorRowRules)));
 
         // IntegrationAccount service
         let integration_account_repository = Arc::new(IntegrationAccountRepository::new(db_pool.clone()));
-        let integration_account_service = Arc::new(IntegrationAccountService::with_repository(integration_account_repository.clone()));
+        let integration_account_service = Arc::new(IntegrationAccountService::with_repository(integration_account_repository.clone()).with_guard(Arc::new(crate::application::service::IntegrationAccountRowRules)));
 
         // IntegrationEvent service
         let integration_event_repository = Arc::new(IntegrationEventRepository::new(db_pool.clone()));
-        let integration_event_service = Arc::new(IntegrationEventService::with_repository(integration_event_repository.clone()));
+        let integration_event_service = Arc::new(IntegrationEventService::with_repository(integration_event_repository.clone()).with_guard(Arc::new(crate::application::service::IntegrationEventRowRules)));
 
 
         // The extension builds its own state from what the generated build made.

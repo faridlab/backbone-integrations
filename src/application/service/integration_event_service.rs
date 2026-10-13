@@ -32,3 +32,77 @@ pub type IntegrationEventService = GenericCrudService<
     IntegrationEventRepository,
 >;
 
+/// The rules the schema declares for IntegrationEvent, checked against the row a create or update
+/// would store. The generated build attaches it to [`IntegrationEventService`]. A refusing rule's
+/// break answers 422; a rule in shadow is logged under `backbone::write_guard` and the
+/// write goes ahead.
+pub struct IntegrationEventRowRules;
+
+#[async_trait::async_trait]
+impl backbone_core::write_guard::WriteGuard<IntegrationEvent> for IntegrationEventRowRules {
+    async fn check(
+        &self,
+        ctx: &backbone_core::write_guard::WriteCtx<'_, IntegrationEvent>,
+    ) -> backbone_core::write_guard::GuardOutcome {
+        use backbone_core::row_rule as r;
+        use backbone_core::violation::Violation;
+        use backbone_core::write_guard::{GuardOutcome, WriteKind};
+        let (create, update) = (ctx.kind == WriteKind::Create, ctx.kind == WriteKind::Update);
+        let Some(after) = ctx.after.filter(|_| create || update) else {
+            return GuardOutcome::allow();
+        };
+        let Ok(row) = serde_json::to_value(after) else {
+            return GuardOutcome::allow();
+        };
+        let row = &row;
+        let old = ctx.before.and_then(|b| serde_json::to_value(b).ok());
+        let mut shadow = Vec::new();
+        let mut refuse = Vec::new();
+        // `connector_id_required` (@required on IntegrationEvent.connector_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["connector_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "connector_id")), r::not(r::is_empty(r::trim(r::field(row, "connector_id")))))) {
+            refuse.push(Violation::new("connector_id", "required", "connector_id is required"));
+        }
+        // `event_type_required` (@required on IntegrationEvent.event_type)
+        if (create || (update && r::changed(old.as_ref(), row, &["event_type"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "event_type")), r::not(r::is_empty(r::trim(r::field(row, "event_type")))))) {
+            refuse.push(Violation::new("event_type", "required", "event_type is required"));
+        }
+        // `event_type_max_length` (@length(max=80) on IntegrationEvent.event_type)
+        if (create || (update && r::changed(old.as_ref(), row, &["event_type"]))) && !r::holds(&r::le(r::length(r::field(row, "event_type")), r::Val::Num(80.0_f64))) {
+            shadow.push(Violation::new("event_type", "max_length", "event_type must be at most 80 characters").with_param("max", 80_i64));
+        }
+        // `external_id_required` (@required on IntegrationEvent.external_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["external_id"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "external_id")), r::not(r::is_empty(r::trim(r::field(row, "external_id")))))) {
+            refuse.push(Violation::new("external_id", "required", "external_id is required"));
+        }
+        // `external_id_max_length` (@length(max=200) on IntegrationEvent.external_id)
+        if (create || (update && r::changed(old.as_ref(), row, &["external_id"]))) && !r::holds(&r::le(r::length(r::field(row, "external_id")), r::Val::Num(200.0_f64))) {
+            shadow.push(Violation::new("external_id", "max_length", "external_id must be at most 200 characters").with_param("max", 200_i64));
+        }
+        // `business_key_required` (@required on IntegrationEvent.business_key)
+        if (create || (update && r::changed(old.as_ref(), row, &["business_key"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "business_key")), r::not(r::is_empty(r::trim(r::field(row, "business_key")))))) {
+            refuse.push(Violation::new("business_key", "required", "business_key is required"));
+        }
+        // `business_key_max_length` (@length(max=200) on IntegrationEvent.business_key)
+        if (create || (update && r::changed(old.as_ref(), row, &["business_key"]))) && !r::holds(&r::le(r::length(r::field(row, "business_key")), r::Val::Num(200.0_f64))) {
+            shadow.push(Violation::new("business_key", "max_length", "business_key must be at most 200 characters").with_param("max", 200_i64));
+        }
+        // `payload_required` (@required on IntegrationEvent.payload)
+        if (create || (update && r::changed(old.as_ref(), row, &["payload"]))) && !r::holds(&r::and(r::is_not_null(r::field(row, "payload")), r::not(r::is_empty(r::trim(r::field(row, "payload")))))) {
+            refuse.push(Violation::new("payload", "required", "payload is required"));
+        }
+        // `payload_max_length` (@length(max=20000) on IntegrationEvent.payload)
+        if (create || (update && r::changed(old.as_ref(), row, &["payload"]))) && !r::holds(&r::le(r::length(r::field(row, "payload")), r::Val::Num(20000.0_f64))) {
+            shadow.push(Violation::new("payload", "max_length", "payload must be at most 20000 characters").with_param("max", 20000_i64));
+        }
+        // `mapped_ref_type_max_length` (@length(max=60) on IntegrationEvent.mapped_ref_type)
+        if (create || (update && r::changed(old.as_ref(), row, &["mapped_ref_type"]))) && !r::holds(&r::le(r::length(r::field(row, "mapped_ref_type")), r::Val::Num(60.0_f64))) {
+            shadow.push(Violation::new("mapped_ref_type", "max_length", "mapped_ref_type must be at most 60 characters").with_param("max", 60_i64));
+        }
+        // `error_detail_max_length` (@length(max=1000) on IntegrationEvent.error_detail)
+        if (create || (update && r::changed(old.as_ref(), row, &["error_detail"]))) && !r::holds(&r::le(r::length(r::field(row, "error_detail")), r::Val::Num(1000.0_f64))) {
+            shadow.push(Violation::new("error_detail", "max_length", "error_detail must be at most 1000 characters").with_param("max", 1000_i64));
+        }
+        GuardOutcome { refuse, shadow }
+    }
+}
+
