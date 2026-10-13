@@ -43,9 +43,6 @@ pub use application::service::IntegrationConnectorService;
 pub use application::service::IntegrationAccountService;
 pub use application::service::IntegrationEventService;
 
-// Re-exports - Workflows
-pub use application::workflows::*;
-
 use std::sync::Arc;
 use axum::Router;
 use sqlx::PgPool;
