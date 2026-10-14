@@ -19,5 +19,29 @@ pub use integration_connector_service::IntegrationConnectorRowRules;
 pub use integration_account_service::IntegrationAccountRowRules;
 pub use integration_event_service::IntegrationEventRowRules;
 
+/// A `IntegrationConnectorService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_integration_connector_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::IntegrationConnectorRepository>,
+) -> IntegrationConnectorService {
+    IntegrationConnectorService::with_repository(repository).with_guard(std::sync::Arc::new(IntegrationConnectorRowRules))
+}
+
+/// A `IntegrationAccountService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_integration_account_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::IntegrationAccountRepository>,
+) -> IntegrationAccountService {
+    IntegrationAccountService::with_repository(repository).with_guard(std::sync::Arc::new(IntegrationAccountRowRules))
+}
+
+/// A `IntegrationEventService` over `repository` with its write guard attached: the way to build it, so its writes are
+/// served only with the rules the schema declares.
+pub fn build_integration_event_service(
+    repository: std::sync::Arc<crate::infrastructure::persistence::IntegrationEventRepository>,
+) -> IntegrationEventService {
+    IntegrationEventService::with_repository(repository).with_guard(std::sync::Arc::new(IntegrationEventRowRules))
+}
+
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");
