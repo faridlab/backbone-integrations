@@ -41,6 +41,7 @@ pub struct CreateIntegrationEventDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "business_key")]
     pub business_key: String,
+    #[serde(default = "default_create_integration_event_status")]
     pub status: IntegrationStatus,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub payload: String,
@@ -50,6 +51,10 @@ pub struct CreateIntegrationEventDto {
     pub mapped_ref_id: Option<Uuid>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "error_detail")]
     pub error_detail: Option<String>,
+}
+
+fn default_create_integration_event_status() -> IntegrationStatus {
+    IntegrationStatus::Received
 }
 
 // =============================================================================
@@ -116,12 +121,12 @@ pub struct PatchIntegrationEventDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "mapped_ref_type")]
-    pub mapped_ref_type: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "mapped_ref_id")]
-    pub mapped_ref_id: Option<Uuid>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "error_detail")]
-    pub error_detail: Option<String>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "mapped_ref_type")]
+    pub mapped_ref_type: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "mapped_ref_id")]
+    pub mapped_ref_id: Option<Option<Uuid>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "error_detail")]
+    pub error_detail: Option<Option<String>>,
 }
 
 impl PatchIntegrationEventDto {
@@ -313,12 +318,4 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationEventDto> for IntegrationEve
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to IntegrationEvent here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

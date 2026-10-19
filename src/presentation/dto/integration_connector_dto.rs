@@ -34,8 +34,18 @@ pub struct CreateIntegrationConnectorDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     pub provider: String,
     pub kind: ConnectorKind,
+    #[serde(default = "default_create_integration_connector_direction")]
     pub direction: ConnectorDirection,
+    #[serde(default = "default_create_integration_connector_status")]
     pub status: ConnectorStatus,
+}
+
+fn default_create_integration_connector_direction() -> ConnectorDirection {
+    ConnectorDirection::Inbound
+}
+
+fn default_create_integration_connector_status() -> ConnectorStatus {
+    ConnectorStatus::Active
 }
 
 // =============================================================================
@@ -240,12 +250,4 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationConnectorDto> for Integratio
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to IntegrationConnector here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

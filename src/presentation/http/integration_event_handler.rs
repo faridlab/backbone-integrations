@@ -80,6 +80,13 @@ impl axum::response::IntoResponse for IntegrationEventError {
 // Route Configuration
 // =============================================================================
 
+/// The permissions this entity's generic routes require: `integration_event:<action>` for `read`, `create`,
+/// `update`, `delete`, `restore` and `purge`, with any rename the schema's `requires:` declares.
+pub fn integration_event_permissions() -> backbone_core::http::CrudPermissions {
+    backbone_core::http::CrudPermissions::new("integration_event")
+        .in_module("integrations")
+}
+
 /// Create Axum router with all 16 Backbone endpoints for IntegrationEvent.
 ///
 /// # Routes
@@ -109,21 +116,23 @@ impl axum::response::IntoResponse for IntegrationEventError {
 /// let router = create_integration_event_routes(service);
 /// ```
 pub fn create_integration_event_routes(service: Arc<IntegrationEventService>) -> Router {
-    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::routes(
+    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::routes_guarded(
         service,
         "/integration_events",
+        integration_event_permissions(),
     )
 }
 
 /// Create Axum router with only the read (GET) endpoints for IntegrationEvent.
 ///
-/// Safe for public, unauthenticated exposure (e.g., reference data).
+/// Each route requires the entity's `read` permission, so it needs an authenticated caller.
 /// Mutations must be served separately via `create_integration_event_write_routes`,
 /// typically wrapped in an auth middleware layer.
 pub fn create_integration_event_read_routes(service: Arc<IntegrationEventService>) -> Router {
-    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::read_routes(
+    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::read_routes_guarded(
         service,
         "/integration_events",
+        integration_event_permissions(),
     )
 }
 
@@ -139,9 +148,10 @@ pub fn create_integration_event_read_routes(service: Arc<IntegrationEventService
 /// service (e.g. a command router over its domain engine), serve THAT instead
 /// for any mutation that must respect domain rules.
 pub fn create_integration_event_write_routes(service: Arc<IntegrationEventService>) -> Router {
-    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::write_routes(
+    BackboneCrudHandler::<IntegrationEventService, IntegrationEvent, CreateIntegrationEventDto, UpdateIntegrationEventDto, IntegrationEventResponseDto>::write_routes_guarded(
         service,
         "/integration_events",
+        integration_event_permissions(),
     )
 }
 

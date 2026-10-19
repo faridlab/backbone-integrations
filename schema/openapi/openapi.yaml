@@ -793,9 +793,6 @@ components:
       required:
         - provider
         - kind
-        - direction
-        - status
-        - metadata
       properties:
         provider:
           type: string
@@ -805,8 +802,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     UpdateIntegrationConnectorRequest:
       type: object
@@ -815,7 +810,6 @@ components:
         - kind
         - direction
         - status
-        - metadata
       properties:
         provider:
           type: string
@@ -825,8 +819,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     PatchIntegrationConnectorRequest:
       type: object
@@ -839,8 +831,6 @@ components:
           type: string
         status:
           type: string
-        metadata:
-          type: object
 
     IntegrationConnectorList:
       type: object
@@ -913,9 +903,7 @@ components:
         - event_type
         - external_id
         - business_key
-        - status
         - payload
-        - metadata
       properties:
         connector_id:
           type: string
@@ -940,8 +928,6 @@ components:
         error_detail:
           nullable: true
           type: string
-        metadata:
-          type: object
 
     UpdateIntegrationEventRequest:
       type: object
@@ -952,7 +938,6 @@ components:
         - business_key
         - status
         - payload
-        - metadata
       properties:
         connector_id:
           type: string
@@ -977,8 +962,6 @@ components:
         error_detail:
           nullable: true
           type: string
-        metadata:
-          type: object
 
     PatchIntegrationEventRequest:
       type: object
@@ -1006,8 +989,6 @@ components:
         error_detail:
           nullable: true
           type: string
-        metadata:
-          type: object
 
     IntegrationEventList:
       type: object

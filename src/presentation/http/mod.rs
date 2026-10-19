@@ -10,8 +10,8 @@ pub mod integration_event_handler;
 
 
 // Re-exports
-pub use integration_connector_handler::{create_integration_connector_routes, create_integration_connector_read_routes, create_integration_connector_write_routes};
-pub use integration_event_handler::{create_integration_event_routes, create_integration_event_read_routes, create_integration_event_write_routes};
+pub use integration_connector_handler::{create_integration_connector_routes, create_integration_connector_read_routes, create_integration_connector_write_routes, integration_connector_permissions};
+pub use integration_event_handler::{create_integration_event_routes, create_integration_event_read_routes, create_integration_event_write_routes, integration_event_permissions};
 
 // This directory's extension (hand-written; ADR-0031).
 include!("mod.ext.rs");

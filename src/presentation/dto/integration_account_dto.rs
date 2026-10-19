@@ -34,8 +34,10 @@ pub struct CreateIntegrationAccountDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(alias = "account_ref")]
     pub account_ref: String,
+    #[serde(default = "default_create_integration_account_status")]
     pub status: IntegrationAccountStatus,
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
+    #[serde(default)]
     pub scopes: String,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "pkce_verifier")]
     pub pkce_verifier: Option<String>,
@@ -43,6 +45,10 @@ pub struct CreateIntegrationAccountDto {
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "last_refreshed_at")]
     pub last_refreshed_at: Option<DateTime<Utc>>,
+}
+
+fn default_create_integration_account_status() -> IntegrationAccountStatus {
+    IntegrationAccountStatus::Pending
 }
 
 // =============================================================================
@@ -94,12 +100,12 @@ pub struct PatchIntegrationAccountDto {
     #[cfg_attr(feature = "openapi", schema(example = "example"))]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scopes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "pkce_verifier")]
-    pub pkce_verifier: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "expires_at")]
-    pub expires_at: Option<DateTime<Utc>>,
-    #[serde(skip_serializing_if = "Option::is_none", alias = "last_refreshed_at")]
-    pub last_refreshed_at: Option<DateTime<Utc>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "pkce_verifier")]
+    pub pkce_verifier: Option<Option<String>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "expires_at")]
+    pub expires_at: Option<Option<DateTime<Utc>>>,
+    #[serde(default, deserialize_with = "crate::presentation::dto::double_option", alias = "last_refreshed_at")]
+    pub last_refreshed_at: Option<Option<DateTime<Utc>>>,
 }
 
 impl PatchIntegrationAccountDto {
@@ -278,12 +284,4 @@ impl backbone_core::ApplyUpdateDto<UpdateIntegrationAccountDto> for IntegrationA
         Ok(self)
     }
 }
-
-// =============================================================================
-// Custom DTOs
-// =============================================================================
-
-// Add custom DTOs specific to IntegrationAccount here.
-// This section will be preserved during regeneration.
-// >>> END CUSTOM DTOs
 

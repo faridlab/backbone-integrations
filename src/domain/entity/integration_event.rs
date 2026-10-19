@@ -220,6 +220,12 @@ impl super::Entity for IntegrationEvent {
 }
 
 impl backbone_core::PersistentEntity for IntegrationEvent {
+    fn references() -> &'static [backbone_core::Reference] {
+        const REFERENCES: &[backbone_core::Reference] = &[
+            backbone_core::Reference::new("connector_id", "integrations.integration_connectors", "id"),
+        ];
+        REFERENCES
+    }
     fn entity_id(&self) -> String {
         self.id.to_string()
     }
